@@ -34,16 +34,22 @@ create table if not exists public.tasks (
   done boolean not null default false,
   due_date date,
   due_time time,
+  parent_task_id uuid,
   position integer not null default 0,
   updated_at timestamptz not null default now(),
   deleted boolean not null default false,
+  constraint tasks_id_user_id_unique unique (id, user_id),
+  constraint tasks_id_user_list_unique unique (id, user_id, list_id),
   constraint tasks_list_owner_fkey foreign key (list_id, user_id)
-    references public.lists(id, user_id) on delete cascade
+    references public.lists(id, user_id) on delete cascade,
+  constraint tasks_parent_owner_fkey foreign key (parent_task_id, user_id, list_id)
+    references public.tasks(id, user_id, list_id) on delete cascade
 );
 
 create index if not exists sections_user_updated_idx on public.sections (user_id, updated_at);
 create index if not exists lists_user_updated_idx on public.lists (user_id, updated_at);
 create index if not exists tasks_user_updated_idx on public.tasks (user_id, updated_at);
+create index if not exists tasks_parent_task_id_idx on public.tasks (parent_task_id);
 
 alter table public.sections enable row level security;
 alter table public.lists enable row level security;

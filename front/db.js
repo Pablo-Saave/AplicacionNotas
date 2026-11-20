@@ -7,7 +7,7 @@
  */
 
 const DB_NAME_PREFIX = 'Klip_User_';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -62,6 +62,9 @@ class Database {
           taskStore.createIndex('done', 'done', { unique: false });
           taskStore.createIndex('position', 'position', { unique: false });
           taskStore.createIndex('updated_at', 'updated_at', { unique: false });
+          taskStore.createIndex('parent_task_id', 'parent_task_id', { unique: false });
+        } else if (!event.target.transaction.objectStore('tasks').indexNames.contains('parent_task_id')) {
+          event.target.transaction.objectStore('tasks').createIndex('parent_task_id', 'parent_task_id', { unique: false });
         }
       };
 
@@ -97,6 +100,7 @@ class Database {
         if (name === 'tasks') {
           if (patch.due_date === '') patch.due_date = null;
           if (patch.due_time === '') patch.due_time = null;
+          if (patch.parent_task_id === undefined) patch.parent_task_id = null;
         }
         await this._put(name, patch);
       }
@@ -322,9 +326,22 @@ class Database {
       const index = store.index('list_id');
       const req = index.getAll(listId);
       req.onsuccess = () => {
-        const tasks = (req.result || []).filter((row) => !row.deleted);
+        const tasks = (req.result || []).filter((row) => !row.deleted && !row.parent_task_id);
         tasks.sort((a, b) => a.position - b.position);
         resolve(tasks);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getSubtasks(parentTaskId) {
+    return new Promise((resolve, reject) => {
+      const store = this._transaction('tasks', 'readonly').objectStore('tasks');
+      const req = store.index('parent_task_id').getAll(parentTaskId);
+      req.onsuccess = () => {
+        const rows = (req.result || []).filter((row) => !row.deleted);
+        rows.sort((a, b) => a.position - b.position);
+        resolve(rows);
       };
       req.onerror = () => reject(req.error);
     });
@@ -341,11 +358,26 @@ class Database {
       done: false,
       due_date: null,
       due_time: null,
+      parent_task_id: null,
       position,
       updated_at: new Date().toISOString(), deleted: false
     };
     await this._put('tasks', newTask);
     return newTask;
+  }
+
+  async addSubtask(parentTaskId, title) {
+    const parent = await this._get('tasks', parentTaskId);
+    if (!parent || parent.deleted) throw new Error('Tarea principal no encontrada');
+    const siblings = await this.getSubtasks(parentTaskId);
+    const subtask = {
+      id: generateUUID(), list_id: parent.list_id, parent_task_id: parentTaskId,
+      title: title.trim(), note: '', done: false, due_date: null, due_time: null,
+      position: siblings.length ? Math.max(...siblings.map((row) => row.position)) + 1 : 0,
+      updated_at: new Date().toISOString(), deleted: false
+    };
+    await this._put('tasks', subtask);
+    return subtask;
   }
 
   async updateTask(id, updates) {
@@ -363,6 +395,7 @@ class Database {
   async deleteTask(id) {
     const task = await this._get('tasks', id);
     if (!task) return true;
+    for (const child of await this.getSubtasks(id)) await this.deleteTask(child.id);
     await this._put('tasks', { ...task, deleted: true, updated_at: new Date().toISOString() });
     return true;
   }

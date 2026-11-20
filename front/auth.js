@@ -11,6 +11,16 @@ function renderAuthScreen() {
 
   const authEl = document.getElementById('auth-screen');
   if (authEl) {
+    currentAuthTab = 'login';
+    document.querySelectorAll('.auth-tab').forEach((tab) => {
+      tab.classList.toggle('active', tab.dataset.tab === 'login');
+    });
+    const submitBtn = document.getElementById('auth-submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Iniciar sesión';
+    }
+    clearAuthError();
     authEl.style.display = 'flex';
     return;
   }
@@ -111,6 +121,8 @@ async function handleAuthSubmit() {
       }
     }
     // Si llegamos acá, login fue exitoso
+    submitBtn.disabled = false;
+    submitBtn.textContent = currentAuthTab === 'login' ? 'Iniciar sesión' : 'Crear cuenta';
     hideAuthScreen();
     await window.__onAuthSuccess();
   } catch (err) {

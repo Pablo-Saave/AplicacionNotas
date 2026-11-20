@@ -188,7 +188,7 @@ async function pushAllData(localData) {
 
   const sectionsWithUser = localData.sections.map(s => ({ ...s, user_id: userId }));
   const listsWithUser = localData.lists.map(l => ({ ...l, user_id: userId }));
-  const tasksWithUser = localData.tasks.map(t => ({ ...t, due_date: t.due_date || null, due_time: t.due_time ? t.due_time.slice(0, 5) : null, user_id: userId }));
+  const tasksWithUser = localData.tasks.map(t => ({ ...t, parent_task_id: t.parent_task_id || null, due_date: t.due_date || null, due_time: t.due_time ? t.due_time.slice(0, 5) : null, user_id: userId }));
 
   // Upsert in order (sections first, then lists, then tasks)
   if (sectionsWithUser.length > 0) {
@@ -205,11 +205,20 @@ async function pushAllData(localData) {
       body: JSON.stringify(listsWithUser)
     });
   }
-  if (tasksWithUser.length > 0) {
+  const rootTasks = tasksWithUser.filter((task) => !task.parent_task_id);
+  const subtasks = tasksWithUser.filter((task) => task.parent_task_id);
+  if (rootTasks.length > 0) {
     await supaFetch('/rest/v1/tasks', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(tasksWithUser)
+      body: JSON.stringify(rootTasks)
+    });
+  }
+  if (subtasks.length > 0) {
+    await supaFetch('/rest/v1/tasks', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(subtasks)
     });
   }
 }

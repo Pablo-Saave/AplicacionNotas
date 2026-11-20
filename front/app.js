@@ -15,7 +15,9 @@ const state = {
   isCompletedExpanded: false,
   isSyncing: false,
   viewMode: 'tasks',
-  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  taskDetailId: null,
+  taskDetailDirty: false
 };
 
 // ==================== DOM ====================
@@ -61,8 +63,22 @@ const DOM = {
   btnViewCalendar: document.getElementById('btn-view-calendar'),
   btnCalendarPrev: document.getElementById('btn-calendar-prev'),
   btnCalendarNext: document.getElementById('btn-calendar-next'),
-  btnExportCalendar: document.getElementById('btn-export-calendar')
+  btnExportCalendar: document.getElementById('btn-export-calendar'),
+  taskDetailPage: document.getElementById('task-detail-page'),
+  taskDetailForm: document.getElementById('task-detail-form'),
+  taskDetailTitle: document.getElementById('detail-task-title'),
+  taskDetailNote: document.getElementById('detail-task-note'),
+  taskDetailDate: document.getElementById('detail-task-date'),
+  taskDetailTime: document.getElementById('detail-task-time'),
+  taskDetailContext: document.getElementById('task-detail-context'),
+  taskDetailSaveStatus: document.getElementById('task-detail-save-status'),
+  subtasksList: document.getElementById('subtasks-list'),
+  subtaskCount: document.getElementById('subtask-count'),
+  subtaskAddForm: document.getElementById('subtask-add-form'),
+  subtaskInput: document.getElementById('subtask-input')
 };
+
+let appEventsBound = false;
 
 // ==================== SVG ICONS ====================
 const ICONS = {
@@ -95,6 +111,7 @@ function accountStorageKey(key) {
 
 // ==================== AUTH INTEGRATION ====================
 async function cerrarSesion() {
+  if (state.taskDetailId) await closeTaskDetail();
   try {
     await window.SupabaseClient.signOut();
   } catch (e) {
@@ -224,6 +241,7 @@ setInterval(() => {
 async function initApp() {
   try {
     registerServiceWorker();
+    installBackNavigationGuard();
 
     // Refresh a stored session before opening that user's isolated local database.
     let session = window.SupabaseClient.getSession();
@@ -257,7 +275,10 @@ async function initApp() {
 
 async function initAppUI() {
   await loadInitialData();
-  bindEvents();
+  if (!appEventsBound) {
+    bindEvents();
+    appEventsBound = true;
+  }
   focusTaskInput();
 }
 
@@ -634,7 +655,7 @@ async function renderCalendar() {
         taskButton.className = `calendar-task${task.done ? ' done' : ''}`;
         taskButton.textContent = `${task.due_time ? `${task.due_time.slice(0, 5)} ` : ''}${task.title}`;
         taskButton.title = `${task.title} — ${task.calendarListName}`;
-        taskButton.addEventListener('click', () => openEditTaskModal(task));
+        taskButton.addEventListener('click', () => openTaskDetail(task.id));
         dayEl.appendChild(taskButton);
       }
     }
@@ -815,8 +836,100 @@ function createTaskElement(task) {
     toggleTaskDone(task);
   });
 
-  item.addEventListener('click', () => openEditTaskModal(task));
+  item.addEventListener('click', () => openTaskDetail(task.id));
+  item.querySelector('.btn-task-action').addEventListener('click', (event) => {
+    event.stopPropagation();
+    openTaskDetail(task.id);
+  });
   return item;
+}
+
+async function openTaskDetail(taskId) {
+  const task = await window.DB._get('tasks', taskId);
+  if (!task || task.deleted || task.parent_task_id) return;
+  state.taskDetailId = taskId;
+  state.taskDetailDirty = false;
+  const list = state.lists.find((row) => row.id === task.list_id);
+  const section = state.sections.find((row) => row.id === list?.section_id);
+  DOM.taskDetailContext.textContent = [section?.name, list?.name].filter(Boolean).join(' · ');
+  DOM.taskDetailTitle.value = task.title || '';
+  DOM.taskDetailNote.value = task.note || '';
+  DOM.taskDetailDate.value = task.due_date || '';
+  DOM.taskDetailTime.value = task.due_time ? task.due_time.slice(0, 5) : '';
+  DOM.taskDetailSaveStatus.textContent = '';
+  DOM.taskDetailPage.hidden = false;
+  document.querySelector('.section-header-area').hidden = true;
+  DOM.tasksScrollContainer.hidden = true;
+  DOM.bottomDock.hidden = true;
+  DOM.taskDetailTitle.focus();
+  await renderSubtasks(taskId);
+}
+
+async function saveTaskDetail() {
+  const title = DOM.taskDetailTitle.value.trim();
+  if (!title) { DOM.taskDetailTitle.focus(); return false; }
+  if (!state.taskDetailId) return false;
+  const updated = await window.DB.updateTask(state.taskDetailId, {
+    title, note: DOM.taskDetailNote.value.trim(),
+    due_date: DOM.taskDetailDate.value || null,
+    due_time: DOM.taskDetailTime.value || null
+  });
+  state.taskDetailDirty = false;
+  DOM.taskDetailSaveStatus.textContent = 'Guardado';
+  await loadTasks();
+  bgSync(() => window.SupabaseClient.upsertTask(updated));
+  return true;
+}
+
+async function closeTaskDetail() {
+  if (!state.taskDetailId) return;
+  if (state.taskDetailDirty && !(await saveTaskDetail())) return;
+  state.taskDetailId = null;
+  state.taskDetailDirty = false;
+  DOM.taskDetailPage.hidden = true;
+  document.querySelector('.section-header-area').hidden = false;
+  DOM.tasksScrollContainer.hidden = false;
+  DOM.bottomDock.hidden = state.viewMode === 'calendar';
+}
+
+async function renderSubtasks(parentTaskId) {
+  const subtasks = await window.DB.getSubtasks(parentTaskId);
+  DOM.subtaskCount.textContent = `${subtasks.filter((row) => row.done).length}/${subtasks.length} completadas`;
+  DOM.subtasksList.replaceChildren();
+  for (const task of subtasks) {
+    const row = document.createElement('div');
+    row.className = `subtask-row${task.done ? ' done' : ''}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox'; checkbox.checked = !!task.done;
+    checkbox.setAttribute('aria-label', `Marcar ${task.title} como ${task.done ? 'pendiente' : 'completada'}`);
+    checkbox.addEventListener('change', async () => {
+      const updated = await window.DB.updateTask(task.id, { done: checkbox.checked });
+      await renderSubtasks(parentTaskId);
+      bgSync(() => window.SupabaseClient.upsertTask(updated));
+    });
+    const title = document.createElement('span'); title.textContent = task.title;
+    const remove = document.createElement('button');
+    remove.type = 'button'; remove.className = 'subtask-delete'; remove.textContent = 'Eliminar';
+    remove.addEventListener('click', async () => {
+      await window.DB.deleteTask(task.id);
+      const deleted = await window.DB._get('tasks', task.id);
+      await renderSubtasks(parentTaskId);
+      bgSync(() => window.SupabaseClient.upsertTask(deleted));
+    });
+    row.append(checkbox, title, remove);
+    DOM.subtasksList.appendChild(row);
+  }
+}
+
+async function addSubtask(event) {
+  event.preventDefault();
+  const title = DOM.subtaskInput.value.trim();
+  if (!title || !state.taskDetailId) return;
+  if (state.taskDetailDirty && !(await saveTaskDetail())) return;
+  const task = await window.DB.addSubtask(state.taskDetailId, title);
+  DOM.subtaskInput.value = '';
+  await renderSubtasks(state.taskDetailId);
+  bgSync(() => window.SupabaseClient.upsertTask(task));
 }
 
 async function toggleTaskDone(task) {
@@ -836,72 +949,6 @@ async function handleAddTask(e) {
   focusTaskInput();
   DOM.tasksScrollContainer.scrollTop = 0;
   bgSync(() => window.SupabaseClient.upsertTask(newTask));
-}
-
-function openEditTaskModal(task) {
-  openModal({
-    title: 'Editar Tarea',
-    bodyHTML: `
-      <div class="form-group">
-        <label class="form-label">Título</label>
-        <input type="text" id="modal-task-title" class="form-input" value="${escapeHTML(task.title)}" required autofocus>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Nota o detalles</label>
-        <textarea id="modal-task-note" class="form-textarea" placeholder="Escribe detalles opcionales...">${escapeHTML(task.note || '')}</textarea>
-      </div>
-      <div class="task-date-fields">
-        <div class="form-group">
-          <label class="form-label" for="modal-task-date">Fecha</label>
-          <input type="date" id="modal-task-date" class="form-input" value="${escapeHTML(task.due_date || '')}">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="modal-task-time">Hora</label>
-          <input type="time" id="modal-task-time" class="form-input" value="${escapeHTML(task.due_time ? task.due_time.slice(0, 5) : '')}">
-        </div>
-      </div>
-    `,
-    footerButtons: [
-      {
-        label: 'Eliminar',
-        className: 'btn-danger',
-        onClick: async () => {
-          if (confirm('¿Eliminar esta tarea?')) {
-            const taskId = task.id;
-            await window.DB.deleteTask(taskId);
-            closeModal();
-            await loadTasks();
-            focusTaskInput();
-            bgSync(() => window.SupabaseClient.deleteTask(taskId));
-          }
-        }
-      },
-      { label: 'Cancelar', className: 'btn-secondary', onClick: closeModal },
-      {
-        label: 'Guardar',
-        className: 'btn-primary',
-        onClick: async () => {
-          const titleInput = document.getElementById('modal-task-title');
-          const noteInput = document.getElementById('modal-task-note');
-          const dateInput = document.getElementById('modal-task-date');
-          const timeInput = document.getElementById('modal-task-time');
-          const newTitle = titleInput ? titleInput.value.trim() : '';
-          const newNote = noteInput ? noteInput.value.trim() : '';
-          if (!newTitle) return;
-          const updated = await window.DB.updateTask(task.id, {
-            title: newTitle,
-            note: newNote,
-            due_date: dateInput?.value || null,
-            due_time: timeInput?.value || null
-          });
-          closeModal();
-          await loadTasks();
-          focusTaskInput();
-          bgSync(() => window.SupabaseClient.upsertTask(updated));
-        }
-      }
-    ]
-  });
 }
 
 // ==================== UI HELPERS ====================
@@ -997,6 +1044,27 @@ function bindEvents() {
   if (DOM.btnAddList) DOM.btnAddList.addEventListener('click', openNewListModal);
   if (DOM.completedToggleBtn) DOM.completedToggleBtn.addEventListener('click', toggleCompletedAccordion);
   if (DOM.addTaskForm) DOM.addTaskForm.addEventListener('submit', handleAddTask);
+  const backFromDetail = document.getElementById('btn-task-detail-back');
+  const deleteDetailTask = document.getElementById('btn-detail-delete');
+  if (backFromDetail) backFromDetail.addEventListener('click', closeTaskDetail);
+  if (DOM.taskDetailForm) {
+    DOM.taskDetailForm.addEventListener('input', () => { state.taskDetailDirty = true; DOM.taskDetailSaveStatus.textContent = ''; });
+    DOM.taskDetailForm.addEventListener('submit', async (event) => { event.preventDefault(); await saveTaskDetail(); });
+  }
+  ['detail-task-title', 'detail-task-note', 'detail-task-date', 'detail-task-time'].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener('change', () => { state.taskDetailDirty = true; });
+  });
+  if (DOM.subtaskAddForm) DOM.subtaskAddForm.addEventListener('submit', addSubtask);
+  if (deleteDetailTask) deleteDetailTask.addEventListener('click', async () => {
+    if (!state.taskDetailId || !confirm('¿Eliminar esta tarea y sus subtareas?')) return;
+    const taskId = state.taskDetailId;
+    await window.DB.deleteTask(taskId);
+    state.taskDetailDirty = false;
+    await closeTaskDetail();
+    await loadTasks();
+    bgSync(() => window.SupabaseClient.deleteTask(taskId));
+  });
 
   if (DOM.btnModalClose) DOM.btnModalClose.addEventListener('click', closeModal);
   if (DOM.btnViewTasks) DOM.btnViewTasks.addEventListener('click', () => setViewMode('tasks'));
@@ -1018,9 +1086,21 @@ function bindEvents() {
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) closeModal();
+      if (state.taskDetailId) closeTaskDetail();
+      else if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) closeModal();
       else if (DOM.sidebar && DOM.sidebar.classList.contains('open')) closeSidebar();
     }
+  });
+}
+
+function installBackNavigationGuard() {
+  if (window.__klipBackGuardInstalled) return;
+  window.__klipBackGuardInstalled = true;
+  history.replaceState({ klip: true }, '', location.href);
+  history.pushState({ klipGuard: true }, '', location.href);
+  window.addEventListener('popstate', async () => {
+    if (state.taskDetailId) await closeTaskDetail();
+    history.pushState({ klipGuard: true }, '', location.href);
   });
 }
 

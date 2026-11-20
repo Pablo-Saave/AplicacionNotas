@@ -163,6 +163,37 @@
         </div>
       </section>
 
+      <section id="task-detail-page" class="task-detail-page" hidden aria-labelledby="detail-task-title">
+        <div class="task-detail-inner">
+          <button id="btn-task-detail-back" class="utility-btn task-detail-back" type="button" aria-label="Volver a las tareas">← Volver a las tareas</button>
+          <p id="task-detail-context" class="task-detail-context"></p>
+          <form id="task-detail-form" class="task-detail-form">
+            <label class="detail-field-label" for="detail-task-title">Tarea</label>
+            <input id="detail-task-title" class="detail-title-input" type="text" maxlength="300" required>
+            <label class="detail-field-label" for="detail-task-note">Notas</label>
+            <textarea id="detail-task-note" class="form-textarea detail-note-input" placeholder="Agrega contexto o detalles..."></textarea>
+            <div class="task-date-fields">
+              <div class="form-group"><label class="form-label" for="detail-task-date">Fecha</label><input id="detail-task-date" class="form-input" type="date"></div>
+              <div class="form-group"><label class="form-label" for="detail-task-time">Hora</label><input id="detail-task-time" class="form-input" type="time"></div>
+            </div>
+            <div class="task-detail-actions">
+              <button class="utility-btn" type="submit">Guardar cambios</button>
+              <button id="btn-detail-delete" class="btn-danger" type="button">Eliminar tarea</button>
+              <span id="task-detail-save-status" class="task-detail-save-status" aria-live="polite"></span>
+            </div>
+          </form>
+
+          <section class="subtasks-section" aria-labelledby="subtasks-heading">
+            <div class="subtasks-heading-row"><h2 id="subtasks-heading">Subtareas</h2><span id="subtask-count" class="subtask-count"></span></div>
+            <div id="subtasks-list" class="subtasks-list"></div>
+            <form id="subtask-add-form" class="subtask-add-form">
+              <input id="subtask-input" class="form-input" type="text" maxlength="300" placeholder="Agregar subtarea" required>
+              <button class="btn-circle-submit" type="submit" aria-label="Agregar subtarea">+</button>
+            </form>
+          </section>
+        </div>
+      </section>
+
       <!-- Tasks Scroll Container -->
       <div class="tasks-scroll-container" id="tasks-scroll-container">
         <div class="tasks-content-wrapper">
