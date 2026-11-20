@@ -1,4 +1,4 @@
-const CACHE_NAME = 'klip-pwa-v5';
+const CACHE_NAME = 'tareas-pwa-v5';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -10,9 +10,6 @@ const ASSETS_TO_CACHE = [
   './icon.svg',
   './icon-192.png',
   './icon-512.png',
-  './icon-maskable-512.png',
-  './logo.svg',
-  './logo-mark.svg',
   './fonts/playfair-display-400.woff2',
   './fonts/playfair-display-700.woff2',
   './fonts/arimo-400.woff2',

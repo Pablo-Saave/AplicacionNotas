@@ -23,6 +23,8 @@ const DOM = {
   mobileSectionsList: document.getElementById('mobile-sections-list'),
   btnNewSection: document.getElementById('btn-new-section'),
   btnNewSectionMobile: document.getElementById('btn-new-section-mobile'),
+  btnRenameCurrentSection: document.getElementById('btn-rename-current-section'),
+  btnDeleteCurrentSection: document.getElementById('btn-delete-current-section'),
   currentSectionTitle: document.getElementById('current-section-title'),
   mainSectionTitle: document.getElementById('main-section-title'),
   tasksCounterBadge: document.getElementById('tasks-counter-badge'),
@@ -51,6 +53,11 @@ const ICONS = {
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
   dots: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`
 };
+
+// Helper: Get currently active section object
+function getCurrentSection() {
+  return state.sections.find((s) => s.id === state.currentSectionId) || state.sections[0];
+}
 
 // ==================== CERRAR SESIÓN (HOOK) ====================
 function cerrarSesion() {
@@ -115,7 +122,7 @@ async function switchSection(sectionId, autoFocus = true) {
 }
 
 function renderSections() {
-  // 1. Render Desktop Sections (Centered horizontal bar with dot & emerald active underline)
+  // 1. Render Desktop Sections (Centered with dot and rounded indicator, no edit/delete icons inside)
   if (DOM.sectionsList) {
     DOM.sectionsList.innerHTML = '';
     state.sections.forEach((section) => {
@@ -125,42 +132,17 @@ function renderSections() {
       item.innerHTML = `
         <span class="sec-dot"></span>
         <span class="sec-name">${escapeHTML(section.name)}</span>
-        <div class="section-actions">
-          <button class="btn-section-action" title="Renombrar sección" data-rename-sec="${section.id}">
-            ${ICONS.edit}
-          </button>
-          <button class="btn-section-action" title="Eliminar sección" data-delete-sec="${section.id}">
-            ${ICONS.trash}
-          </button>
-        </div>
       `;
 
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-section-action')) return;
+      item.addEventListener('click', () => {
         switchSection(section.id);
       });
-
-      const btnRename = item.querySelector(`[data-rename-sec="${section.id}"]`);
-      if (btnRename) {
-        btnRename.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openRenameSectionModal(section);
-        });
-      }
-
-      const btnDelete = item.querySelector(`[data-delete-sec="${section.id}"]`);
-      if (btnDelete) {
-        btnDelete.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openDeleteSectionModal(section);
-        });
-      }
 
       DOM.sectionsList.appendChild(item);
     });
   }
 
-  // 2. Render Mobile Sections Panel (Full touch target, instant switch)
+  // 2. Render Mobile Sections Panel (Clean rows with dot, no edit/delete icons inside)
   if (DOM.mobileSectionsList) {
     DOM.mobileSectionsList.innerHTML = '';
     state.sections.forEach((section) => {
@@ -172,39 +154,12 @@ function renderSections() {
           <span class="sec-dot" style="${isActive ? 'background-color: var(--accent-emerald);' : ''}"></span>
           <span>${escapeHTML(section.name)}</span>
         </div>
-        <div class="section-actions" style="opacity: 0.85;">
-          <button class="btn-section-action" title="Renombrar" data-rename-mobile="${section.id}">
-            ${ICONS.edit}
-          </button>
-          <button class="btn-section-action" title="Eliminar" data-delete-mobile="${section.id}">
-            ${ICONS.trash}
-          </button>
-        </div>
       `;
 
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-section-action')) return;
+      item.addEventListener('click', () => {
         switchSection(section.id);
         closeSidebar();
       });
-
-      const btnRename = item.querySelector(`[data-rename-mobile="${section.id}"]`);
-      if (btnRename) {
-        btnRename.addEventListener('click', (e) => {
-          e.stopPropagation();
-          closeSidebar();
-          openRenameSectionModal(section);
-        });
-      }
-
-      const btnDelete = item.querySelector(`[data-delete-mobile="${section.id}"]`);
-      if (btnDelete) {
-        btnDelete.addEventListener('click', (e) => {
-          e.stopPropagation();
-          closeSidebar();
-          openDeleteSectionModal(section);
-        });
-      }
 
       DOM.mobileSectionsList.appendChild(item);
     });
@@ -240,6 +195,7 @@ function openNewSectionModal() {
 }
 
 function openRenameSectionModal(section) {
+  if (!section) section = getCurrentSection();
   openModal({
     title: 'Renombrar Sección',
     bodyHTML: `
@@ -272,6 +228,7 @@ function openRenameSectionModal(section) {
 }
 
 function openDeleteSectionModal(section) {
+  if (!section) section = getCurrentSection();
   if (state.sections.length <= 1) {
     openModal({
       title: 'No se puede eliminar',
@@ -668,6 +625,18 @@ function bindEvents() {
     DOM.btnNewSectionMobile.addEventListener('click', () => {
       closeSidebar();
       openNewSectionModal();
+    });
+  }
+
+  // Rename & Delete current section from title row buttons
+  if (DOM.btnRenameCurrentSection) {
+    DOM.btnRenameCurrentSection.addEventListener('click', () => {
+      openRenameSectionModal(getCurrentSection());
+    });
+  }
+  if (DOM.btnDeleteCurrentSection) {
+    DOM.btnDeleteCurrentSection.addEventListener('click', () => {
+      openDeleteSectionModal(getCurrentSection());
     });
   }
 

@@ -1,14 +1,16 @@
 /* ==========================================================================
    style.css - klip Tasks PWA
-   Tipografía:
-   - Playfair Display: solo el título grande de la sección y los títulos de modal
-   - Arial / Arimo: todo lo demás
-   Paleta:
-   - Fondo: Marfil #FAF7F2 (plano, sin degradados)
+   Typography:
+   - Playfair Display: Solo para el título grande de la sección y apartados
+   - Arial, Arimo, Helvetica, sans-serif: Todo lo demás (navegación, tareas,
+     notas, etiquetas, botones, campos)
+   Palette:
+   - Fondo: Rosa niebla #F4E1DE con degradado radial al 10% azul tinta
    - Estructura y texto: Azul tinta #1D2B5C
-   - Rosa niebla #F4E1DE: solo como acento (píldora activa, botones "+" pequeños)
-   - Esmeralda #00A060: acciones, checks e indicador de sección activa
-   - Sin sombras, sin librerías externas.
+   - Tarjetas de tareas: Rosa más claro #FAF1EF con borde azul tinta marcado
+   - Líneas divisorias: Azul tinta al 24% más visibles y con más color
+   - Barra inferior: Azul tinta sólido #1D2B5C con placeholder rosa niebla
+   - Acentos: Esmeralda #00A060 para acciones, checks e indicador redondeado
    ========================================================================== */
 
 /* ==================== LOCAL FONT FACES ==================== */
@@ -53,16 +55,16 @@
 }
 
 :root {
-  --bg-page: #FAF7F2;
-  --pink: #F4E1DE;
-  --bg-card: #FAF7F2;
+  --bg-page: #F4E1DE;
+  --bg-card: #FAF1EF;
   --color-blue: #1D2B5C;
   --text-main: #1D2B5C;
-  --text-muted: rgba(29, 43, 92, 0.70);
-  --text-faint: rgba(29, 43, 92, 0.40);
+  --text-muted: rgba(29, 43, 92, 0.72);
+  --text-faint: rgba(29, 43, 92, 0.42);
 
-  --border-line: rgba(29, 43, 92, 0.15);
-  --border-card: rgba(29, 43, 92, 0.12);
+  /* Líneas divisorias azulitas más notorias para dar más color */
+  --border-line: rgba(29, 43, 92, 0.24);
+  --border-card: rgba(29, 43, 92, 0.18);
 
   --hover-tint: rgba(29, 43, 92, 0.06);
 
@@ -92,9 +94,14 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Fondo marfil plano */
+/* Fondo con degradado radial visible: azul tinta al 10% en esquinas superior izq e inferior der */
 body, #app {
   background-color: var(--bg-page);
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(29, 43, 92, 0.10) 0%, transparent 48%),
+    radial-gradient(circle at 100% 100%, rgba(29, 43, 92, 0.10) 0%, transparent 48%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 /* ==================== ROOT LAYOUT ==================== */
@@ -127,20 +134,16 @@ body, #app {
   align-items: center;
 }
 
-.brand-logo-img {
-  display: block;
-  height: 30px;
-  width: auto;
+.brand-logo {
+  font-family: var(--font-title);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-blue);
+  line-height: 1;
 }
 
-.mobile-logo-mark {
-  display: none;
-  height: 26px;
-  width: auto;
-  flex-shrink: 0;
-}
-
-/* Center: Sections Centered with dot & emerald bar */
+/* Center: Sections Centered with dot & rounded emerald indicator */
 .nav-center {
   display: flex;
   align-items: center;
@@ -151,26 +154,27 @@ body, #app {
 .sections-list-desktop {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
+/* 3. Fondo de las secciones en PC: totalmente redondeado (border-radius: 999px) con mayor padding */
 .section-item-desktop {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-family: var(--font-body);
   font-size: 13.5px;
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 15px 10px;
-  border-bottom: 2.5px solid transparent;
+  padding: 7px 16px;
+  border-radius: 999px; /* Esquinas totalmente redondeadas */
+  border: none;
   white-space: nowrap;
   user-select: none;
-  border-radius: 4px 4px 0 0;
-  transition: all 0.15s ease;
   position: relative;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Hover de secciones: fondo azul tinta al 6% */
@@ -182,10 +186,10 @@ body, #app {
 .section-item-desktop.active {
   color: var(--text-main);
   font-weight: 600;
-  border-bottom-color: var(--accent-emerald); /* Barra esmeralda */
+  background-color: var(--hover-tint);
 }
 
-/* Puntito indicador */
+/* Puntito indicador junto al nombre */
 .sec-dot {
   width: 5px;
   height: 5px;
@@ -204,39 +208,17 @@ body, #app {
   transform: scale(1.2);
 }
 
-.section-item-desktop .section-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  margin-left: 2px;
-}
-
-.section-item-desktop:hover .section-actions,
-.section-item-desktop.active .section-actions {
-  opacity: 0.75;
-}
-
-.btn-section-action {
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  padding: 2px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-}
-
-.btn-section-action:hover {
-  background-color: rgba(29, 43, 92, 0.12);
-}
-
-.btn-section-action svg {
-  width: 12px;
-  height: 12px;
+/* Indicador esmeralda corto y redondeado (aprox. 3px alto, 24px ancho, border-radius: 999px), centrado bajo el texto */
+.section-item-desktop.active::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+  background-color: var(--accent-emerald);
 }
 
 /* Botón '+' esmeralda pegado justo después de la última sección */
@@ -255,7 +237,7 @@ body, #app {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: 2px;
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
@@ -482,7 +464,7 @@ body, #app {
 /* Section Header Area */
 .section-header-area {
   width: 100%;
-  padding: 36px 36px 16px 36px;
+  padding: 34px 36px 16px 36px;
   flex-shrink: 0;
 }
 
@@ -492,14 +474,21 @@ body, #app {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .section-title-row {
   display: flex;
-  align-items: baseline;
-  gap: 16px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap; /* En celular el badge baja si falta espacio */
+}
+
+.section-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 
 /* Título grande de la sección en Playfair Display */
@@ -511,6 +500,36 @@ body, #app {
   color: var(--color-blue);
   line-height: 1.1;
   margin: 0;
+}
+
+/* 4. Botones circulares pequeños (28 px) de renombrar y eliminar al lado del título */
+.section-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(29, 43, 92, 0.20);
+  background: transparent;
+  color: var(--color-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.section-action-btn:hover {
+  background-color: var(--hover-tint);
+  border-color: rgba(29, 43, 92, 0.40);
+}
+
+.section-action-btn:active {
+  transform: scale(0.92);
 }
 
 /* Etiqueta de contadores ("1 pendiente · 2 completadas") con fondo azul tinta al 10% y texto azul tinta */
@@ -545,7 +564,7 @@ body, #app {
   gap: 8px;
 }
 
-/* Píldora de apartado */
+/* 1. Píldoras de apartados inactivos: transparentes con borde fino */
 .tab-btn {
   background: transparent;
   border: 1px solid var(--border-line);
@@ -568,11 +587,11 @@ body, #app {
   border-color: rgba(29, 43, 92, 0.35);
 }
 
-/* Píldora del apartado activo: rosa niebla con texto azul tinta */
+/* 1. Píldora del apartado activo: azul tinta #1D2B5C sólido con texto y flecha en rosa niebla #F4E1DE */
 .tab-btn.active {
-  background-color: var(--pink);
-  color: var(--color-blue);
-  border-color: rgba(29, 43, 92, 0.18);
+  background-color: var(--color-blue); /* #1D2B5C */
+  color: var(--bg-page); /* #F4E1DE */
+  border-color: var(--color-blue);
   font-weight: 600;
 }
 
@@ -582,7 +601,7 @@ body, #app {
   color: inherit;
   cursor: pointer;
   padding: 1px;
-  opacity: 0.6;
+  opacity: 0.75;
   display: inline-flex;
   align-items: center;
 }
@@ -596,29 +615,34 @@ body, #app {
   height: 11px;
 }
 
+/* 2. Botón redondo '+' del apartado: pasa a esmeralda #00A060 con el '+' en blanco (mismo estilo que el '+' superior) */
 .btn-add-apartado {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 1px solid rgba(29, 43, 92, 0.12);
-  background: var(--pink);
-  color: var(--text-main);
+  background-color: var(--accent-emerald); /* #00A060 */
+  color: #FFFFFF;
+  border: none;
   font-family: var(--font-body);
   font-size: 15px;
   line-height: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-add-apartado:hover {
-  border-color: var(--text-main);
+  background-color: var(--accent-emerald-hover); /* #008750 */
 }
 
-/* ==================== TASKS AREA (FILAS) ==================== */
+.btn-add-apartado:active {
+  transform: scale(0.92);
+}
+
+/* ==================== TASKS AREA (CARDS #FAF1EF) ==================== */
 .tasks-scroll-container {
   width: 100%;
   flex: 1;
@@ -650,34 +674,34 @@ body, #app {
   color: var(--text-muted);
 }
 
-/* Lista de tareas: filas separadas por línea fina */
+/* Tasks Cards */
 .tasks-cards-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 10px;
   width: 100%;
 }
 
+/* Tareas dentro de una tarjeta de rosa más claro (#FAF1EF) con borde azul tinta */
 .task-item {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 16px 6px;
-  background-color: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border-line);
-  border-radius: 0;
+  padding: 15px 18px;
+  background-color: var(--bg-card); /* #FAF1EF */
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-/* Hover de las filas: azul tinta al 4% */
+/* Hover de las filas con fondo azul tinta al 6% */
 .task-item:hover {
-  background-color: rgba(29, 43, 92, 0.04);
+  background-color: rgba(29, 43, 92, 0.06);
 }
 
-/* Los círculos de las tareas con borde azul tinta */
+/* Círculos de las tareas con borde azul tinta */
 .task-checkbox-btn {
   background: transparent;
   border: none;
@@ -694,7 +718,7 @@ body, #app {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  border: 1.5px solid var(--color-blue); /* Borde azul tinta */
+  border: 1.5px solid var(--color-blue);
   background: transparent;
   display: flex;
   align-items: center;
@@ -805,8 +829,9 @@ body, #app {
 
 /* ==================== COMPLETED SECTION ==================== */
 .completed-section {
-  margin-top: 20px;
-  padding-top: 4px;
+  margin-top: 32px;
+  border-top: 1px solid var(--border-line);
+  padding-top: 14px;
   display: none;
 }
 
@@ -848,7 +873,7 @@ body, #app {
   display: none;
   margin-top: 8px;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
 }
 
 .completed-section.expanded .completed-tasks-cards {
@@ -856,7 +881,6 @@ body, #app {
 }
 
 /* ==================== DOCKED ADD TASK BAR (#1D2B5C) ==================== */
-/* La barra de “Agregar tarea” fija abajo en azul tinta #1D2B5C, con placeholder en rosa niebla y el botón circular esmeralda */
 .bottom-dock {
   position: fixed;
   bottom: 0;
@@ -873,7 +897,7 @@ body, #app {
   pointer-events: auto;
   width: 100%;
   max-width: 680px;
-  background-color: var(--color-blue); /* #1D2B5C */
+  background-color: var(--color-blue);
   border: 1px solid rgba(29, 43, 92, 0.25);
   border-radius: 999px;
   box-shadow: none;
@@ -899,10 +923,10 @@ body, #app {
   padding: 6px 0;
 }
 
-/* Placeholder en rosa niebla */
+/* Placeholder en rosa niebla #F4E1DE */
 .task-input::placeholder {
-  color: var(--pink);
-  opacity: 0.8;
+  color: var(--bg-page);
+  opacity: 0.75;
 }
 
 .btn-circle-submit {
@@ -1095,15 +1119,6 @@ body, #app {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-  }
-
-  .mobile-logo-mark {
-    display: block;
-  }
-
-  .mobile-user-actions {
-    margin-left: auto;
   }
 
   .section-header-area {
