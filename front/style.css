@@ -705,6 +705,16 @@ body, #app {
   margin-top: 4px;
 }
 
+.task-subtasks-preview { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 0 16px; }
+.task-subtask-row { display: flex; align-items: center; gap: 14px; min-height: 46px; color: var(--text-main); }
+.task-subtask-checkbox { width: 20px; height: 20px; padding: 0; border: 1.5px solid rgba(29, 43, 92, 0.55); border-radius: 50%; background: transparent; color: #fff; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 20px; cursor: pointer; }
+.task-subtask-checkbox span, .task-subtask-checkbox svg { display: block; width: 12px; height: 12px; }
+.task-subtask-row.done .task-subtask-checkbox { background: var(--accent-emerald); border-color: var(--accent-emerald); }
+.task-subtask-title { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.task-subtask-row.done .task-subtask-title { color: var(--text-faint); text-decoration: line-through; }
+.task-subtask-add { align-self: flex-start; margin: 4px 0 0 34px; border: 0; background: transparent; color: var(--text-muted); font: 500 12px var(--font-body); padding: 6px 0; cursor: pointer; }
+.task-subtask-add:hover { color: var(--accent-emerald); }
+
 .calendar-panel[hidden], #tasks-view[hidden], .bottom-dock[hidden] {
   display: none !important;
 }

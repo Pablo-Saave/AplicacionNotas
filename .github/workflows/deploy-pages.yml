@@ -23,12 +23,26 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+      - name: Check that this commit is still the latest main
+        id: current
+        shell: bash
+        run: |
+          latest_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$latest_sha" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale commit $GITHUB_SHA; main is at $latest_sha."
+          fi
       - name: Configure GitHub Pages
+        if: steps.current.outputs.deploy == 'true'
         uses: actions/configure-pages@v5
       - name: Upload frontend site
+        if: steps.current.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: front
       - name: Deploy to GitHub Pages
+        if: steps.current.outputs.deploy == 'true'
         id: deployment
         uses: actions/deploy-pages@v4

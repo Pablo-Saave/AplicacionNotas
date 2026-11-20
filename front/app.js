@@ -12,6 +12,7 @@ const state = {
   lists: [],
   currentListId: null,
   tasks: [],
+  subtasksByParent: {},
   isCompletedExpanded: false,
   isSyncing: false,
   viewMode: 'tasks',
@@ -584,6 +585,9 @@ async function loadTasks() {
     return;
   }
   state.tasks = await window.DB.getTasks(state.currentListId);
+  state.subtasksByParent = Object.fromEntries(await Promise.all(
+    state.tasks.map(async (task) => [task.id, await window.DB.getSubtasks(task.id)])
+  ));
   renderTasks();
   if (state.viewMode === 'calendar') await renderCalendar();
 }
@@ -824,6 +828,15 @@ function createTaskElement(task) {
       <div class="task-title">${escapeHTML(task.title)}</div>
       ${noteSnippet}
       ${dueSnippet}
+      <div class="task-subtasks-preview">
+        ${(state.subtasksByParent[task.id] || []).map((subtask) => `
+          <div class="task-subtask-row${subtask.done ? ' done' : ''}" data-subtask-id="${escapeHTML(subtask.id)}">
+            <button class="task-subtask-checkbox" type="button" aria-label="${subtask.done ? 'Marcar subtarea como pendiente' : 'Completar subtarea'}"><span>${subtask.done ? ICONS.check : ''}</span></button>
+            <span class="task-subtask-title">${escapeHTML(subtask.title)}</span>
+          </div>
+        `).join('')}
+        <button class="task-subtask-add" type="button">+ Agregar subtarea</button>
+      </div>
     </div>
     <div class="task-actions">
       <button class="btn-task-action" type="button" title="Abrir tarea y subtareas" aria-label="Abrir tarea y subtareas">${ICONS.edit}<span>Detalles</span></button>
@@ -840,6 +853,21 @@ function createTaskElement(task) {
   item.querySelector('.btn-task-action').addEventListener('click', (event) => {
     event.stopPropagation();
     openTaskDetail(task.id);
+  });
+  item.querySelectorAll('.task-subtask-row').forEach((row) => {
+    row.addEventListener('click', (event) => event.stopPropagation());
+    row.querySelector('.task-subtask-checkbox').addEventListener('click', async () => {
+      const subtask = await window.DB._get('tasks', row.dataset.subtaskId);
+      if (!subtask || subtask.deleted) return;
+      const updated = await window.DB.updateTask(subtask.id, { done: !subtask.done });
+      await loadTasks();
+      if (state.taskDetailId === task.id) await renderSubtasks(task.id);
+      bgSync(() => window.SupabaseClient.upsertTask(updated));
+    });
+  });
+  item.querySelector('.task-subtask-add').addEventListener('click', (event) => {
+    event.stopPropagation();
+    openTaskDetail(task.id).then(() => DOM.subtaskInput.focus());
   });
   return item;
 }
@@ -913,6 +941,7 @@ async function renderSubtasks(parentTaskId) {
     remove.addEventListener('click', async () => {
       await window.DB.deleteTask(task.id);
       const deleted = await window.DB._get('tasks', task.id);
+      await loadTasks();
       await renderSubtasks(parentTaskId);
       bgSync(() => window.SupabaseClient.upsertTask(deleted));
     });
@@ -928,6 +957,7 @@ async function addSubtask(event) {
   if (state.taskDetailDirty && !(await saveTaskDetail())) return;
   const task = await window.DB.addSubtask(state.taskDetailId, title);
   DOM.subtaskInput.value = '';
+  await loadTasks();
   await renderSubtasks(state.taskDetailId);
   bgSync(() => window.SupabaseClient.upsertTask(task));
 }
