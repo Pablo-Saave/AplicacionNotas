@@ -826,7 +826,7 @@ function createTaskElement(task) {
       ${dueSnippet}
     </div>
     <div class="task-actions">
-      <button class="btn-task-action" title="Editar tarea">${ICONS.edit}</button>
+      <button class="btn-task-action" type="button" title="Abrir tarea y subtareas" aria-label="Abrir tarea y subtareas">${ICONS.edit}<span>Detalles</span></button>
     </div>
   `;
 

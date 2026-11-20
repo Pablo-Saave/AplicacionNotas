@@ -955,6 +955,9 @@ body, #app {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+  gap: 5px;
+  font: 600 11px var(--font-body);
+  white-space: nowrap;
 }
 
 .btn-task-action:hover {

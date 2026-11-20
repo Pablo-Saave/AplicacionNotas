@@ -25,10 +25,26 @@ async function supaFetch(path, options = {}) {
     ...options.headers
   };
 
-  const res = await fetch(`${SUPABASE_URL}${path}`, {
-    ...options,
-    headers
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), isAuthRequest ? 15000 : 30000);
+  let res;
+  try {
+    const { signal: callerSignal, ...fetchOptions } = options;
+    res = await fetch(`${SUPABASE_URL}${path}`, {
+      ...fetchOptions,
+      signal: callerSignal || controller.signal,
+      headers
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(isAuthRequest
+        ? 'Supabase no respondió a tiempo. Revisa tu conexión e intenta de nuevo.'
+        : 'La sincronización tardó demasiado; tus cambios siguen guardados localmente.');
+    }
+    throw new Error('No se pudo conectar con Supabase. Revisa tu conexión e intenta de nuevo.');
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));

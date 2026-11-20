@@ -97,6 +97,7 @@ async function handleAuthSubmit() {
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const submitBtn = document.getElementById('auth-submit-btn');
+  if (submitBtn.disabled) return;
 
   if (!email || !password) {
     showAuthError('Completá todos los campos.');
@@ -126,6 +127,7 @@ async function handleAuthSubmit() {
     hideAuthScreen();
     await window.__onAuthSuccess();
   } catch (err) {
+    renderAuthScreen();
     const msg = translateAuthError(err.message);
     showAuthError(msg);
     submitBtn.disabled = false;
