@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Tareas</title>
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#1D2B5C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tareas">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+
+  <!-- Minimalist Pure CSS -->
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <div id="app">
+    <!-- Mobile Backdrop -->
+    <div id="sidebar-backdrop"></div>
+
+    <!-- Sidebar (Sections) -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"></path>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+          <span>Tareas</span>
+        </div>
+        <button id="btn-close-sidebar" class="btn-icon-close" aria-label="Cerrar menú">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-title-badge">Secciones</div>
+
+      <div id="sections-list" class="sections-scroll-area">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="btn-new-section" class="btn-new-section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Nueva sección</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="main">
+      <!-- Mobile Top Bar -->
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <button id="btn-menu" class="btn-menu" aria-label="Abrir secciones">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h1 id="current-section-title" class="current-section-heading">Personal</h1>
+        </div>
+      </header>
+
+      <!-- Tabs Bar (Apartados) -->
+      <section class="lists-tabs-wrapper" aria-label="Apartados de la sección">
+        <div id="lists-tabs" class="lists-tabs">
+          <!-- Rendered dynamically -->
+        </div>
+        <button id="btn-add-list" class="btn-add-list" title="Crear nuevo apartado">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Apartado</span>
+        </button>
+      </section>
+
+      <!-- Tasks View -->
+      <section class="tasks-container" id="tasks-scroll-container">
+        <!-- Empty state placeholder -->
+        <div id="empty-state" class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <h3>No hay tareas pendientes</h3>
+          <p>Escribe tu primera tarea en el campo inferior para comenzar.</p>
+        </div>
+
+        <!-- Active Tasks List -->
+        <div id="active-tasks-list">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Collapsible Completed Section -->
+        <div id="completed-section" class="completed-section">
+          <button id="completed-toggle-btn" class="completed-toggle-btn" aria-expanded="false">
+            <svg class="completed-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span id="completed-count-label">Completadas (0)</span>
+          </button>
+          <div id="completed-tasks-list" class="completed-tasks-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Docked Add Task Bar -->
+      <footer class="bottom-bar">
+        <form id="add-task-form" class="add-task-card" autocomplete="off">
+          <div class="add-task-main-row">
+            <div class="add-icon-circle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+            <input 
+              type="text" 
+              id="task-input" 
+              class="task-input" 
+              placeholder="Agregar una tarea" 
+              autofocus 
+              required
+            >
+            <button type="button" id="btn-toggle-note" class="btn-toggle-note" title="Agregar nota" aria-label="Agregar nota opcional">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </button>
+            <button type="submit" id="btn-submit-task" class="btn-submit-task" title="Crear tarea" aria-label="Crear tarea">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+            </button>
+          </div>
+          <!-- Expandable note input -->
+          <div id="add-task-note-row" class="add-task-note-row">
+            <textarea 
+              id="task-note-input" 
+              class="task-note-input" 
+              placeholder="Agregar detalles o nota opcional..."
+              rows="2"
+            ></textarea>
+          </div>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Reusable Modal (Section / List / Task Edit / Confirmation) -->
+  <div id="modal-container" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title">Título Modal</h2>
+        <button id="btn-modal-close" class="btn-close-modal" aria-label="Cerrar modal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div id="modal-body" class="modal-body">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div id="modal-footer" class="modal-footer">
+        <!-- Buttons rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="./db.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
