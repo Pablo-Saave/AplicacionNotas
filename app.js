@@ -1,6 +1,6 @@
 /**
- * app.js - Controller for Tareas PWA
- * Fast, lightweight, pure vanilla JS for Huawei P40 & modern browsers.
+ * app.js - Controller for klip Tasks PWA
+ * Fast, lightweight, pure vanilla JS with Playfair Display & Arial/Arimo typography.
  */
 
 // Application State
@@ -10,8 +10,7 @@ const state = {
   lists: [],
   currentListId: null,
   tasks: [],
-  isCompletedExpanded: false,
-  isAddNoteExpanded: false
+  isCompletedExpanded: false
 };
 
 // DOM References
@@ -21,8 +20,12 @@ const DOM = {
   btnMenu: document.getElementById('btn-menu'),
   btnCloseSidebar: document.getElementById('btn-close-sidebar'),
   sectionsList: document.getElementById('sections-list'),
+  mobileSectionsList: document.getElementById('mobile-sections-list'),
   btnNewSection: document.getElementById('btn-new-section'),
+  btnNewSectionMobile: document.getElementById('btn-new-section-mobile'),
   currentSectionTitle: document.getElementById('current-section-title'),
+  mainSectionTitle: document.getElementById('main-section-title'),
+  tasksCounterBadge: document.getElementById('tasks-counter-badge'),
   listsTabs: document.getElementById('lists-tabs'),
   btnAddList: document.getElementById('btn-add-list'),
   tasksScrollContainer: document.getElementById('tasks-scroll-container'),
@@ -34,9 +37,6 @@ const DOM = {
   emptyState: document.getElementById('empty-state'),
   addTaskForm: document.getElementById('add-task-form'),
   taskInput: document.getElementById('task-input'),
-  btnToggleNote: document.getElementById('btn-toggle-note'),
-  addTaskNoteRow: document.getElementById('add-task-note-row'),
-  taskNoteInput: document.getElementById('task-note-input'),
   modalContainer: document.getElementById('modal-container'),
   modalTitle: document.getElementById('modal-title'),
   modalBody: document.getElementById('modal-body'),
@@ -44,14 +44,19 @@ const DOM = {
   btnModalClose: document.getElementById('btn-modal-close')
 };
 
-// Icons as SVG strings
+// SVG Icons
 const ICONS = {
-  folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
-  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
   dots: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`
 };
+
+// ==================== CERRAR SESIÓN (HOOK) ====================
+function cerrarSesion() {
+  console.log('cerrarSesion() llamada. Lista para conectar autenticación más adelante.');
+}
+window.cerrarSesion = cerrarSesion;
 
 // ==================== INITIALIZATION ====================
 async function initApp() {
@@ -67,14 +72,12 @@ async function initApp() {
 }
 
 async function loadInitialData() {
-  // Load sections
   state.sections = await window.DB.getSections();
   if (state.sections.length === 0) {
     const sec = await window.DB.addSection('Personal');
     state.sections = [sec];
   }
 
-  // Restore or default section
   const savedSectionId = localStorage.getItem('last_section_id');
   const foundSec = state.sections.find((s) => s.id === savedSectionId);
   state.currentSectionId = foundSec ? foundSec.id : state.sections[0].id;
@@ -88,8 +91,10 @@ async function switchSection(sectionId, autoFocus = true) {
   localStorage.setItem('last_section_id', sectionId);
 
   const currentSection = state.sections.find((s) => s.id === sectionId);
+
   if (currentSection) {
-    DOM.currentSectionTitle.textContent = currentSection.name;
+    if (DOM.currentSectionTitle) DOM.currentSectionTitle.textContent = currentSection.name;
+    if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = currentSection.name;
   }
 
   renderSections();
@@ -110,44 +115,100 @@ async function switchSection(sectionId, autoFocus = true) {
 }
 
 function renderSections() {
-  DOM.sectionsList.innerHTML = '';
-  state.sections.forEach((section) => {
-    const item = document.createElement('div');
-    item.className = `section-item ${section.id === state.currentSectionId ? 'active' : ''}`;
-    item.innerHTML = `
-      <div class="section-item-left">
-        ${ICONS.folder}
-        <span class="section-name">${escapeHTML(section.name)}</span>
-      </div>
-      <div class="section-actions">
-        <button class="btn-section-action" title="Renombrar sección" data-rename-sec="${section.id}">
-          ${ICONS.edit}
-        </button>
-        <button class="btn-section-action" title="Eliminar sección" data-delete-sec="${section.id}">
-          ${ICONS.trash}
-        </button>
-      </div>
-    `;
+  // 1. Render Desktop Sections (Centered horizontal bar with dot & emerald active underline)
+  if (DOM.sectionsList) {
+    DOM.sectionsList.innerHTML = '';
+    state.sections.forEach((section) => {
+      const isActive = section.id === state.currentSectionId;
+      const item = document.createElement('div');
+      item.className = `section-item-desktop ${isActive ? 'active' : ''}`;
+      item.innerHTML = `
+        <span class="sec-dot"></span>
+        <span class="sec-name">${escapeHTML(section.name)}</span>
+        <div class="section-actions">
+          <button class="btn-section-action" title="Renombrar sección" data-rename-sec="${section.id}">
+            ${ICONS.edit}
+          </button>
+          <button class="btn-section-action" title="Eliminar sección" data-delete-sec="${section.id}">
+            ${ICONS.trash}
+          </button>
+        </div>
+      `;
 
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-section-action')) return;
-      switchSection(section.id);
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-section-action')) return;
+        switchSection(section.id);
+      });
+
+      const btnRename = item.querySelector(`[data-rename-sec="${section.id}"]`);
+      if (btnRename) {
+        btnRename.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openRenameSectionModal(section);
+        });
+      }
+
+      const btnDelete = item.querySelector(`[data-delete-sec="${section.id}"]`);
+      if (btnDelete) {
+        btnDelete.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDeleteSectionModal(section);
+        });
+      }
+
+      DOM.sectionsList.appendChild(item);
     });
+  }
 
-    const btnRename = item.querySelector(`[data-rename-sec="${section.id}"]`);
-    btnRename.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openRenameSectionModal(section);
+  // 2. Render Mobile Sections Panel (Full touch target, instant switch)
+  if (DOM.mobileSectionsList) {
+    DOM.mobileSectionsList.innerHTML = '';
+    state.sections.forEach((section) => {
+      const isActive = section.id === state.currentSectionId;
+      const item = document.createElement('div');
+      item.className = `section-item-mobile ${isActive ? 'active' : ''}`;
+      item.innerHTML = `
+        <div class="mobile-item-title">
+          <span class="sec-dot" style="${isActive ? 'background-color: var(--accent-emerald);' : ''}"></span>
+          <span>${escapeHTML(section.name)}</span>
+        </div>
+        <div class="section-actions" style="opacity: 0.85;">
+          <button class="btn-section-action" title="Renombrar" data-rename-mobile="${section.id}">
+            ${ICONS.edit}
+          </button>
+          <button class="btn-section-action" title="Eliminar" data-delete-mobile="${section.id}">
+            ${ICONS.trash}
+          </button>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-section-action')) return;
+        switchSection(section.id);
+        closeSidebar();
+      });
+
+      const btnRename = item.querySelector(`[data-rename-mobile="${section.id}"]`);
+      if (btnRename) {
+        btnRename.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeSidebar();
+          openRenameSectionModal(section);
+        });
+      }
+
+      const btnDelete = item.querySelector(`[data-delete-mobile="${section.id}"]`);
+      if (btnDelete) {
+        btnDelete.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeSidebar();
+          openDeleteSectionModal(section);
+        });
+      }
+
+      DOM.mobileSectionsList.appendChild(item);
     });
-
-    const btnDelete = item.querySelector(`[data-delete-sec="${section.id}"]`);
-    btnDelete.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openDeleteSectionModal(section);
-    });
-
-    DOM.sectionsList.appendChild(item);
-  });
+  }
 }
 
 function openNewSectionModal() {
@@ -199,7 +260,8 @@ function openRenameSectionModal(section) {
           await window.DB.updateSection(section.id, { name });
           state.sections = await window.DB.getSections();
           if (state.currentSectionId === section.id) {
-            DOM.currentSectionTitle.textContent = name;
+            if (DOM.currentSectionTitle) DOM.currentSectionTitle.textContent = name;
+            if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = name;
           }
           renderSections();
           closeModal();
@@ -213,7 +275,7 @@ function openDeleteSectionModal(section) {
   if (state.sections.length <= 1) {
     openModal({
       title: 'No se puede eliminar',
-      bodyHTML: `<p style="font-size: 14px; color: var(--text-main);">Debes tener al menos una sección en la aplicación.</p>`,
+      bodyHTML: `<p style="font-family: var(--font-body); font-size: 14px; color: var(--text-main);">Debes tener al menos una sección en la aplicación.</p>`,
       footerButtons: [
         { label: 'Entendido', className: 'btn-primary', onClick: closeModal }
       ]
@@ -224,10 +286,10 @@ function openDeleteSectionModal(section) {
   openModal({
     title: 'Eliminar Sección',
     bodyHTML: `
-      <p style="font-size: 14px; color: var(--text-main);">
+      <p style="font-family: var(--font-body); font-size: 14px; color: var(--text-main);">
         ¿Seguro que deseas eliminar <strong>${escapeHTML(section.name)}</strong>?
       </p>
-      <p style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">
+      <p style="font-family: var(--font-body); font-size: 13px; color: var(--text-muted); margin-top: 6px;">
         Se eliminarán todos sus apartados y las tareas asociadas.
       </p>
     `,
@@ -376,6 +438,15 @@ function renderTasks() {
   const activeTasks = state.tasks.filter((t) => !t.done);
   const completedTasks = state.tasks.filter((t) => t.done);
 
+  // Update tasks counter badge ("1 pendiente · 2 completadas")
+  if (DOM.tasksCounterBadge) {
+    const pCount = activeTasks.length;
+    const cCount = completedTasks.length;
+    const pText = `${pCount} ${pCount === 1 ? 'pendiente' : 'pendientes'}`;
+    const cText = `${cCount} ${cCount === 1 ? 'completada' : 'completadas'}`;
+    DOM.tasksCounterBadge.textContent = `${pText} · ${cText}`;
+  }
+
   // Render Active Tasks
   DOM.activeTasksList.innerHTML = '';
   if (activeTasks.length === 0 && completedTasks.length === 0) {
@@ -392,7 +463,7 @@ function renderTasks() {
   DOM.completedTasksList.innerHTML = '';
   if (completedTasks.length > 0) {
     DOM.completedSection.classList.add('visible');
-    DOM.completedCountLabel.textContent = `Completadas (${completedTasks.length})`;
+    DOM.completedCountLabel.textContent = `COMPLETADAS (${completedTasks.length})`;
     completedTasks.forEach((task) => {
       DOM.completedTasksList.appendChild(createTaskElement(task));
     });
@@ -434,7 +505,7 @@ function createTaskElement(task) {
     toggleTaskDone(task);
   });
 
-  // Click on row opens edit modal
+  // Click on card opens edit modal
   item.addEventListener('click', () => {
     openEditTaskModal(task);
   });
@@ -453,21 +524,12 @@ async function handleAddTask(e) {
   const title = DOM.taskInput.value.trim();
   if (!title) return;
 
-  const note = state.isAddNoteExpanded ? DOM.taskNoteInput.value.trim() : '';
+  await window.DB.addTask(state.currentListId, title, '');
 
-  await window.DB.addTask(state.currentListId, title, note);
-
-  // Reset form
   DOM.taskInput.value = '';
-  DOM.taskNoteInput.value = '';
-  if (state.isAddNoteExpanded) {
-    toggleAddNote(false);
-  }
-
   await loadTasks();
   focusTaskInput();
 
-  // Scroll to top of list
   DOM.tasksScrollContainer.scrollTop = 0;
 }
 
@@ -481,7 +543,7 @@ function openEditTaskModal(task) {
       </div>
       <div class="form-group">
         <label class="form-label">Nota o detalles</label>
-        <textarea id="modal-task-note" class="form-textarea" placeholder="Escribe detalles adicionales...">${escapeHTML(task.note || '')}</textarea>
+        <textarea id="modal-task-note" class="form-textarea" placeholder="Escribe detalles opcionales...">${escapeHTML(task.note || '')}</textarea>
       </div>
     `,
     footerButtons: [
@@ -524,19 +586,6 @@ function openEditTaskModal(task) {
 }
 
 // ==================== UI HELPERS ====================
-function toggleAddNote(forceState) {
-  state.isAddNoteExpanded = typeof forceState === 'boolean' ? forceState : !state.isAddNoteExpanded;
-  if (state.isAddNoteExpanded) {
-    DOM.addTaskNoteRow.classList.add('visible');
-    DOM.btnToggleNote.classList.add('active');
-    DOM.taskNoteInput.focus();
-  } else {
-    DOM.addTaskNoteRow.classList.remove('visible');
-    DOM.btnToggleNote.classList.remove('active');
-    focusTaskInput();
-  }
-}
-
 function focusTaskInput() {
   setTimeout(() => {
     if (DOM.taskInput) {
@@ -583,7 +632,6 @@ function openModal({ title, bodyHTML, footerButtons }) {
 
   DOM.modalContainer.classList.add('open');
 
-  // Auto focus first input inside modal
   const firstInput = DOM.modalBody.querySelector('input, textarea');
   if (firstInput) {
     setTimeout(() => firstInput.focus(), 60);
@@ -601,7 +649,7 @@ function escapeHTML(str) {
   if (!str) return '';
   return str
     .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
+    .replace(/\x3c/g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
@@ -609,36 +657,43 @@ function escapeHTML(str) {
 
 // ==================== EVENT BINDINGS ====================
 function bindEvents() {
-  // Mobile sidebar toggles
-  DOM.btnMenu.addEventListener('click', () => toggleSidebar(true));
-  DOM.btnCloseSidebar.addEventListener('click', () => toggleSidebar(false));
-  DOM.sidebarBackdrop.addEventListener('click', () => toggleSidebar(false));
+  // Mobile panel toggles
+  if (DOM.btnMenu) DOM.btnMenu.addEventListener('click', () => toggleSidebar(true));
+  if (DOM.btnCloseSidebar) DOM.btnCloseSidebar.addEventListener('click', () => toggleSidebar(false));
+  if (DOM.sidebarBackdrop) DOM.sidebarBackdrop.addEventListener('click', () => toggleSidebar(false));
 
   // Sections
-  DOM.btnNewSection.addEventListener('click', openNewSectionModal);
+  if (DOM.btnNewSection) DOM.btnNewSection.addEventListener('click', openNewSectionModal);
+  if (DOM.btnNewSectionMobile) {
+    DOM.btnNewSectionMobile.addEventListener('click', () => {
+      closeSidebar();
+      openNewSectionModal();
+    });
+  }
 
   // Lists (apartados)
-  DOM.btnAddList.addEventListener('click', openNewListModal);
+  if (DOM.btnAddList) DOM.btnAddList.addEventListener('click', openNewListModal);
 
   // Completed toggle accordion
-  DOM.completedToggleBtn.addEventListener('click', toggleCompletedAccordion);
+  if (DOM.completedToggleBtn) DOM.completedToggleBtn.addEventListener('click', toggleCompletedAccordion);
 
   // Add Task
-  DOM.addTaskForm.addEventListener('submit', handleAddTask);
-  DOM.btnToggleNote.addEventListener('click', () => toggleAddNote());
+  if (DOM.addTaskForm) DOM.addTaskForm.addEventListener('submit', handleAddTask);
 
   // Modal close
-  DOM.btnModalClose.addEventListener('click', closeModal);
-  DOM.modalContainer.addEventListener('click', (e) => {
-    if (e.target === DOM.modalContainer) closeModal();
-  });
+  if (DOM.btnModalClose) DOM.btnModalClose.addEventListener('click', closeModal);
+  if (DOM.modalContainer) {
+    DOM.modalContainer.addEventListener('click', (e) => {
+      if (e.target === DOM.modalContainer) closeModal();
+    });
+  }
 
   // Keyboard shortcut: Escape closes modal or sidebar
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.modalContainer.classList.contains('open')) {
+      if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) {
         closeModal();
-      } else if (DOM.sidebar.classList.contains('open')) {
+      } else if (DOM.sidebar && DOM.sidebar.classList.contains('open')) {
         closeSidebar();
       }
     }
@@ -652,7 +707,7 @@ function registerServiceWorker() {
       navigator.serviceWorker
         .register('./sw.js', { scope: './' })
         .then((reg) => {
-          console.log('ServiceWorker registrado con éxito en scope:', reg.scope);
+          console.log('ServiceWorker registrado en scope:', reg.scope);
         })
         .catch((err) => {
           console.warn('Registro de ServiceWorker falló:', err);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tareas-pwa-v1';
+const CACHE_NAME = 'tareas-pwa-v4';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -9,10 +9,15 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   './icon.svg',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './fonts/playfair-display-400.woff2',
+  './fonts/playfair-display-700.woff2',
+  './fonts/arimo-400.woff2',
+  './fonts/arimo-500.woff2',
+  './fonts/arimo-700.woff2'
 ];
 
-// Install: precache essential shell assets
+// Install: precache essential shell assets and fonts
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {

@@ -3,189 +3,202 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Tareas</title>
+  <title>klip — Tareas</title>
 
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#1D2B5C">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Tareas">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="klip">
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <link rel="apple-touch-icon" href="./icon-192.png">
 
-  <!-- Minimalist Pure CSS -->
+  <!-- Local CSS with @font-face -->
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
   <div id="app">
-    <!-- Mobile Backdrop -->
-    <div id="sidebar-backdrop"></div>
+    <!-- Top Navigation Bar -->
+    <header class="top-nav-bar">
+      <!-- Left: Brand Logo -->
+      <div class="nav-left">
+        <span class="brand-logo">klip</span>
+      </div>
 
-    <!-- Sidebar (Sections) -->
-    <aside id="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-brand">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3L22 4"></path>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-          </svg>
-          <span>Tareas</span>
+      <!-- Center: Sections Centered with Dot and Emerald Bar + Emerald '+' button (Desktop) -->
+      <div class="nav-center">
+        <nav id="sections-list" class="sections-list-desktop" aria-label="Secciones">
+          <!-- Rendered dynamically -->
+        </nav>
+        <button id="btn-new-section" class="btn-new-section-emerald" title="Crear sección" aria-label="Crear sección">
+          +
+        </button>
+      </div>
+
+      <!-- Right: User Icon & Logout Button (Desktop) -->
+      <div class="nav-right">
+        <div class="user-actions-group">
+          <button class="nav-circle-btn" title="Perfil de usuario" aria-label="Perfil de usuario">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+          <button id="btn-logout" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="cerrarSesion()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
         </div>
-        <button id="btn-close-sidebar" class="btn-icon-close" aria-label="Cerrar menú">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      </div>
+
+      <!-- Mobile Top Bar Content (Screen < 768px): Section Name & Trigger on Left, User & Logout on Right -->
+      <div class="nav-mobile-row">
+        <button id="btn-menu" class="btn-mobile-section-trigger" aria-label="Abrir menú de secciones">
+          <span id="current-section-title" class="mobile-section-name">Personal</span>
+          <svg class="trigger-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+
+        <div class="mobile-user-actions">
+          <button class="nav-circle-btn" title="Perfil de usuario" aria-label="Perfil de usuario">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </button>
+          <button id="btn-logout-mobile" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="cerrarSesion()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Mobile Drawer Backdrop (Top-level under #app) -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <!-- Mobile Sections Panel (Top-level under #app) -->
+    <aside id="sidebar" class="mobile-sections-panel" aria-label="Panel de secciones">
+      <div class="mobile-panel-header">
+        <span class="mobile-panel-title">SECCIONES</span>
+        <button id="btn-close-sidebar" class="btn-close-panel" aria-label="Cerrar panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
 
-      <div class="sidebar-title-badge">Secciones</div>
-
-      <div id="sections-list" class="sections-scroll-area">
+      <!-- Scrollable Mobile Sections List -->
+      <div id="mobile-sections-list" class="mobile-sections-list">
         <!-- Rendered dynamically -->
       </div>
 
-      <div class="sidebar-footer">
-        <button id="btn-new-section" class="btn-new-section">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>Nueva sección</span>
+      <!-- Emerald button to add section inside mobile panel -->
+      <div class="mobile-panel-footer">
+        <button id="btn-new-section-mobile" class="btn-add-section-mobile" aria-label="Nueva sección">
+          + NUEVA SECCIÓN
         </button>
       </div>
     </aside>
 
     <!-- Main Content Area -->
     <main id="main">
-      <!-- Mobile Top Bar -->
-      <header class="top-bar">
-        <div class="top-bar-left">
-          <button id="btn-menu" class="btn-menu" aria-label="Abrir secciones">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-          </button>
-          <h1 id="current-section-title" class="current-section-heading">Personal</h1>
-        </div>
-      </header>
+      <!-- Section Header Area with Big Title (Playfair Display) & Counter Badge -->
+      <section class="section-header-area">
+        <div class="section-header-inner">
+          <div class="section-title-row">
+            <h1 class="main-section-title" id="main-section-title">Personal</h1>
+            <span class="tasks-counter-badge" id="tasks-counter-badge">0 pendientes · 0 completadas</span>
+          </div>
 
-      <!-- Tabs Bar (Apartados) -->
-      <section class="lists-tabs-wrapper" aria-label="Apartados de la sección">
-        <div id="lists-tabs" class="lists-tabs">
-          <!-- Rendered dynamically -->
+          <!-- Apartados (Lists) Strip directly below the title -->
+          <div class="apartados-strip" aria-label="Apartados de la sección">
+            <div id="lists-tabs" class="lists-tabs">
+              <!-- Rendered dynamically as pills -->
+            </div>
+            <button id="btn-add-list" class="btn-add-apartado" title="Nuevo apartado" aria-label="Nuevo apartado">
+              +
+            </button>
+          </div>
         </div>
-        <button id="btn-add-list" class="btn-add-list" title="Crear nuevo apartado">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>Apartado</span>
-        </button>
       </section>
 
-      <!-- Tasks View -->
-      <section class="tasks-container" id="tasks-scroll-container">
-        <!-- Empty state placeholder -->
-        <div id="empty-state" class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <h3>No hay tareas pendientes</h3>
-          <p>Escribe tu primera tarea en el campo inferior para comenzar.</p>
-        </div>
+      <!-- Tasks Scroll Container -->
+      <div class="tasks-scroll-container" id="tasks-scroll-container">
+        <div class="tasks-content-wrapper">
 
-        <!-- Active Tasks List -->
-        <div id="active-tasks-list">
-          <!-- Rendered dynamically -->
-        </div>
+          <!-- Simple centered empty state -->
+          <div id="empty-state" class="empty-state">
+            <p class="empty-text">No hay tareas pendientes en este apartado</p>
+          </div>
 
-        <!-- Collapsible Completed Section -->
-        <div id="completed-section" class="completed-section">
-          <button id="completed-toggle-btn" class="completed-toggle-btn" aria-expanded="false">
-            <svg class="completed-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-            <span id="completed-count-label">Completadas (0)</span>
-          </button>
-          <div id="completed-tasks-list" class="completed-tasks-list">
+          <!-- Active Tasks Cards (Lighter pink cards with 12% ink blue border) -->
+          <div id="active-tasks-list" class="tasks-cards-list">
             <!-- Rendered dynamically -->
           </div>
-        </div>
-      </section>
 
-      <!-- Bottom Docked Add Task Bar -->
-      <footer class="bottom-bar">
-        <form id="add-task-form" class="add-task-card" autocomplete="off">
-          <div class="add-task-main-row">
-            <div class="add-icon-circle">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
+          <!-- Discrete Collapsible Completed Section -->
+          <div id="completed-section" class="completed-section">
+            <button id="completed-toggle-btn" class="completed-toggle-btn" aria-expanded="false">
+              <svg class="completed-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
+              <span id="completed-count-label">COMPLETADAS (0)</span>
+            </button>
+            <div id="completed-tasks-list" class="completed-tasks-cards">
+              <!-- Rendered dynamically -->
             </div>
-            <input 
-              type="text" 
-              id="task-input" 
-              class="task-input" 
-              placeholder="Agregar una tarea" 
-              autofocus 
-              required
-            >
-            <button type="button" id="btn-toggle-note" class="btn-toggle-note" title="Agregar nota" aria-label="Agregar nota opcional">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-              </svg>
-            </button>
-            <button type="submit" id="btn-submit-task" class="btn-submit-task" title="Crear tarea" aria-label="Crear tarea">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-              </svg>
-            </button>
           </div>
-          <!-- Expandable note input -->
-          <div id="add-task-note-row" class="add-task-note-row">
-            <textarea 
-              id="task-note-input" 
-              class="task-note-input" 
-              placeholder="Agregar detalles o nota opcional..."
-              rows="2"
-            ></textarea>
-          </div>
+
+        </div>
+      </div>
+
+      <!-- Bottom Fixed Add Task Bar (Solid Ink Blue #1D2B5C with Rosa Niebla placeholder) -->
+      <footer class="bottom-dock">
+        <form id="add-task-form" class="add-task-dock-pill" autocomplete="off">
+          <input 
+            type="text" 
+            id="task-input" 
+            class="task-input" 
+            placeholder="Agregar tarea" 
+            autofocus 
+            required
+          >
+          <button type="submit" id="btn-submit-task" class="btn-circle-submit" title="Agregar tarea" aria-label="Agregar tarea">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
         </form>
       </footer>
     </main>
   </div>
 
-  <!-- Reusable Modal (Section / List / Task Edit / Confirmation) -->
+  <!-- Reusable Minimalist Modal -->
   <div id="modal-container" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="modal-title" class="modal-title">Título Modal</h2>
+        <h2 id="modal-title" class="modal-title">Título</h2>
         <button id="btn-modal-close" class="btn-close-modal" aria-label="Cerrar modal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
-
-      <div id="modal-body" class="modal-body">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <div id="modal-footer" class="modal-footer">
-        <!-- Buttons rendered dynamically -->
-      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-footer" class="modal-footer"></div>
     </div>
   </div>
 
