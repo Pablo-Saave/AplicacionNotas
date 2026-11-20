@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <!-- Mobile Top Bar Content (Screen < 768px): Section Name & Trigger on Left, User & Logout on Right -->
+      <!-- Mobile Top Bar Content (Screen < 768px) -->
       <div class="nav-mobile-row">
         <img class="mobile-logo-mark" src="./logo-mark.svg" alt="klip" height="26">
         <button id="btn-menu" class="btn-mobile-section-trigger" aria-label="Abrir menú de secciones">
@@ -99,7 +99,7 @@
         </button>
       </div>
 
-      <!-- Scrollable Mobile Sections List (Without edit/delete icons inside list) -->
+      <!-- Scrollable Mobile Sections List -->
       <div id="mobile-sections-list" class="mobile-sections-list">
         <!-- Rendered dynamically -->
       </div>
@@ -137,7 +137,7 @@
               </div>
             </div>
 
-            <!-- Counter Badge ("1 pendiente · 2 completadas") -->
+            <!-- Counter Badge -->
             <span class="tasks-counter-badge" id="tasks-counter-badge">0 pendientes · 0 completadas</span>
           </div>
 
@@ -146,7 +146,6 @@
             <div id="lists-tabs" class="lists-tabs">
               <!-- Rendered dynamically as pills -->
             </div>
-            <!-- Botón '+' esmeralda idéntico al de agregar sección -->
             <button id="btn-add-list" class="btn-add-apartado" title="Nuevo apartado" aria-label="Nuevo apartado">
               +
             </button>
@@ -163,7 +162,7 @@
             <p class="empty-text">No hay tareas pendientes en este apartado</p>
           </div>
 
-          <!-- Active Tasks Cards (Lighter pink cards #FAF1EF with 18% ink blue border) -->
+          <!-- Active Tasks List -->
           <div id="active-tasks-list" class="tasks-cards-list">
             <!-- Rendered dynamically -->
           </div>
@@ -184,15 +183,15 @@
         </div>
       </div>
 
-      <!-- Bottom Fixed Add Task Bar (Solid Ink Blue #1D2B5C with Rosa Niebla placeholder) -->
+      <!-- Bottom Fixed Add Task Bar -->
       <footer class="bottom-dock">
         <form id="add-task-form" class="add-task-dock-pill" autocomplete="off">
-          <input 
-            type="text" 
-            id="task-input" 
-            class="task-input" 
-            placeholder="Agregar tarea" 
-            autofocus 
+          <input
+            type="text"
+            id="task-input"
+            class="task-input"
+            placeholder="Agregar tarea"
+            autofocus
             required
           >
           <button type="submit" id="btn-submit-task" class="btn-circle-submit" title="Agregar tarea" aria-label="Agregar tarea">
@@ -205,6 +204,9 @@
       </footer>
     </main>
   </div>
+
+  <!-- Sync indicator (outside #app so always visible) -->
+  <div id="sync-indicator" class="sync-indicator" aria-live="polite"></div>
 
   <!-- Reusable Minimalist Modal -->
   <div id="modal-container" class="modal-overlay" role="dialog" aria-modal="true">
@@ -225,6 +227,8 @@
 
   <!-- Scripts -->
   <script src="./db.js"></script>
+  <script src="./supabase.js"></script>
+  <script src="./auth.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tareas-pwa-v5';
+const CACHE_NAME = 'klip-pwa-v6';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -6,18 +6,21 @@ const ASSETS_TO_CACHE = [
   './style.css',
   './app.js',
   './db.js',
+  './supabase.js',
+  './auth.js',
   './manifest.json',
   './icon.svg',
   './icon-192.png',
   './icon-512.png',
-  './fonts/playfair-display-400.woff2',
-  './fonts/playfair-display-700.woff2',
+  './icon-maskable-512.png',
+  './logo.svg',
+  './logo-mark.svg',
   './fonts/arimo-400.woff2',
   './fonts/arimo-500.woff2',
   './fonts/arimo-700.woff2'
 ];
 
-// Install: precache essential shell assets and fonts
+// Install: precache all shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -40,8 +43,13 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch: Stale-While-Revalidate with offline fallback
+// Network requests to Supabase always go through (don't cache API calls)
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  // Don't cache Supabase API calls
+  const url = new URL(event.request.url);
+  if (url.hostname.endsWith('supabase.co')) return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
@@ -56,7 +64,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // If offline and navigating, return cached index.html
           if (event.request.mode === 'navigate') {
             return caches.match('./index.html');
           }

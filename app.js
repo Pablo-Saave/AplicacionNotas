@@ -1,19 +1,22 @@
 /**
- * app.js - Controller for klip Tasks PWA
- * Fast, lightweight, pure vanilla JS with Playfair Display & Arial/Arimo typography.
+ * app.js - klip Tasks PWA — V2
+ * Vanilla JS + IndexedDB (offline) + Supabase (sync cuando hay internet y usuario logueado).
+ * Estrategia: local-first. Cada escritura va a IndexedDB primero, y se sincroniza con
+ * Supabase en segundo plano sin bloquear la UI.
  */
 
-// Application State
+// ==================== STATE ====================
 const state = {
   sections: [],
   currentSectionId: null,
   lists: [],
   currentListId: null,
   tasks: [],
-  isCompletedExpanded: false
+  isCompletedExpanded: false,
+  isSyncing: false
 };
 
-// DOM References
+// ==================== DOM ====================
 const DOM = {
   sidebar: document.getElementById('sidebar'),
   sidebarBackdrop: document.getElementById('sidebar-backdrop'),
@@ -43,10 +46,11 @@ const DOM = {
   modalTitle: document.getElementById('modal-title'),
   modalBody: document.getElementById('modal-body'),
   modalFooter: document.getElementById('modal-footer'),
-  btnModalClose: document.getElementById('btn-modal-close')
+  btnModalClose: document.getElementById('btn-modal-close'),
+  syncIndicator: document.getElementById('sync-indicator')
 };
 
-// SVG Icons
+// ==================== SVG ICONS ====================
 const ICONS = {
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
@@ -54,28 +58,205 @@ const ICONS = {
   dots: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`
 };
 
-// Helper: Get currently active section object
+// ==================== HELPERS ====================
 function getCurrentSection() {
   return state.sections.find((s) => s.id === state.currentSectionId) || state.sections[0];
 }
 
-// ==================== CERRAR SESIÓN (HOOK) ====================
-function cerrarSesion() {
-  console.log('cerrarSesion() llamada. Lista para conectar autenticación más adelante.');
+function showSync(msg) {
+  if (!DOM.syncIndicator) return;
+  DOM.syncIndicator.textContent = msg;
+  DOM.syncIndicator.classList.add('visible');
+}
+
+function hideSync() {
+  if (!DOM.syncIndicator) return;
+  DOM.syncIndicator.classList.remove('visible');
+}
+
+// ==================== AUTH INTEGRATION ====================
+async function cerrarSesion() {
+  try {
+    await window.SupabaseClient.signOut();
+  } catch (e) {
+    console.warn('Sign out error:', e);
+  }
+  window.Auth.renderAuthScreen();
 }
 window.cerrarSesion = cerrarSesion;
+
+// Called by auth.js after successful login/register
+window.__onAuthSuccess = async function () {
+  await syncFromSupabase();
+  await initAppUI();
+};
+
+// ==================== SYNC ENGINE ====================
+
+/**
+ * Pull data from Supabase and merge into IndexedDB.
+ * Strategy: Supabase is authoritative on first login; afterwards it's local-first.
+ */
+async function syncFromSupabase() {
+  if (!window.SupabaseClient.isLoggedIn()) return;
+  showSync('Sincronizando...');
+  try {
+    // Try to refresh token silently
+    const session = window.SupabaseClient.getSession();
+    const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+    const expiresIn = payload.exp * 1000 - Date.now();
+    if (expiresIn < 60000) {
+      await window.SupabaseClient.refreshToken();
+    }
+
+    const remote = await window.SupabaseClient.pullAllData();
+    if (!remote) { hideSync(); return; }
+
+    const localSections = await window.DB.getSections();
+
+    if (localSections.length === 0 && remote.sections.length > 0) {
+      // Fresh install with remote data: import everything from Supabase into IndexedDB
+      for (const s of remote.sections) {
+        await window.DB._put('sections', { id: s.id, name: s.name, position: s.position });
+      }
+      for (const l of remote.lists) {
+        await window.DB._put('lists', { id: l.id, section_id: l.section_id, name: l.name, position: l.position });
+      }
+      for (const t of remote.tasks) {
+        await window.DB._put('tasks', {
+          id: t.id, list_id: t.list_id, title: t.title, note: t.note || '',
+          done: t.done, due_date: t.due_date || '', due_time: t.due_time || '',
+          position: t.position, updated_at: t.updated_at
+        });
+      }
+    } else if (localSections.length > 0 && remote.sections.length === 0) {
+      // User has local data but Supabase is empty: push everything up
+      await pushLocalToSupabase();
+    } else if (localSections.length > 0 && remote.sections.length > 0) {
+      // Both have data: merge by updated_at (last write wins per task)
+      await mergeData(remote);
+    }
+
+    hideSync();
+  } catch (err) {
+    console.warn('Sync error:', err);
+    hideSync();
+  }
+}
+
+async function mergeData(remote) {
+  // Merge tasks by updated_at: whichever is newer wins
+  for (const remoteTask of remote.tasks) {
+    const localTask = await window.DB._get('tasks', remoteTask.id).catch(() => null);
+    if (!localTask) {
+      await window.DB._put('tasks', {
+        id: remoteTask.id, list_id: remoteTask.list_id, title: remoteTask.title,
+        note: remoteTask.note || '', done: remoteTask.done,
+        due_date: remoteTask.due_date || '', due_time: remoteTask.due_time || '',
+        position: remoteTask.position, updated_at: remoteTask.updated_at
+      });
+    } else {
+      const remoteDate = new Date(remoteTask.updated_at).getTime();
+      const localDate = new Date(localTask.updated_at).getTime();
+      if (remoteDate > localDate) {
+        await window.DB._put('tasks', {
+          id: remoteTask.id, list_id: remoteTask.list_id, title: remoteTask.title,
+          note: remoteTask.note || '', done: remoteTask.done,
+          due_date: remoteTask.due_date || '', due_time: remoteTask.due_time || '',
+          position: remoteTask.position, updated_at: remoteTask.updated_at
+        });
+      }
+    }
+  }
+
+  // Sections: insert any missing
+  for (const s of remote.sections) {
+    const localSec = await window.DB._get('sections', s.id).catch(() => null);
+    if (!localSec) {
+      await window.DB._put('sections', { id: s.id, name: s.name, position: s.position });
+    }
+  }
+
+  // Lists: insert any missing
+  for (const l of remote.lists) {
+    const localList = await window.DB._get('lists', l.id).catch(() => null);
+    if (!localList) {
+      await window.DB._put('lists', { id: l.id, section_id: l.section_id, name: l.name, position: l.position });
+    }
+  }
+}
+
+async function pushLocalToSupabase() {
+  if (!window.SupabaseClient.isLoggedIn()) return;
+  const userId = window.SupabaseClient.getCurrentUserId();
+  if (!userId) return;
+
+  const sections = await window.DB.getSections();
+  const allLists = [];
+  const allTasks = [];
+
+  for (const sec of sections) {
+    const lists = await window.DB.getLists(sec.id);
+    for (const list of lists) {
+      allLists.push(list);
+      const tasks = await window.DB.getTasks(list.id);
+      allTasks.push(...tasks);
+    }
+  }
+
+  await window.SupabaseClient.pushAllData({
+    sections,
+    lists: allLists,
+    tasks: allTasks
+  });
+}
+
+// Background sync: push a single record change to Supabase without blocking UI
+function bgSync(fn) {
+  if (!window.SupabaseClient.isLoggedIn()) return;
+  fn().catch((err) => console.warn('Background sync error:', err));
+}
 
 // ==================== INITIALIZATION ====================
 async function initApp() {
   try {
     await window.DB.init();
-    await loadInitialData();
-    bindEvents();
     registerServiceWorker();
-    focusTaskInput();
+
+    // Check auth
+    if (window.SupabaseClient.isLoggedIn()) {
+      // Try silent token refresh
+      const session = window.SupabaseClient.getSession();
+      if (session) {
+        try {
+          const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+          const expiresIn = payload.exp * 1000 - Date.now();
+          if (expiresIn < 300000) { // less than 5 min
+            await window.SupabaseClient.refreshToken();
+          }
+        } catch (e) { /* token expired or invalid */ }
+      }
+
+      if (window.SupabaseClient.isLoggedIn()) {
+        await syncFromSupabase();
+        await initAppUI();
+        return;
+      }
+    }
+
+    // Not logged in — show auth screen
+    window.Auth.renderAuthScreen();
   } catch (error) {
-    console.error('Error al inicializar la aplicación:', error);
+    console.error('Error al inicializar:', error);
+    // Fallback: try to show UI even without auth
+    await initAppUI();
   }
+}
+
+async function initAppUI() {
+  await loadInitialData();
+  bindEvents();
+  focusTaskInput();
 }
 
 async function loadInitialData() {
@@ -83,6 +264,7 @@ async function loadInitialData() {
   if (state.sections.length === 0) {
     const sec = await window.DB.addSection('Personal');
     state.sections = [sec];
+    bgSync(() => window.SupabaseClient.upsertSection(sec));
   }
 
   const savedSectionId = localStorage.getItem('last_section_id');
@@ -98,7 +280,6 @@ async function switchSection(sectionId, autoFocus = true) {
   localStorage.setItem('last_section_id', sectionId);
 
   const currentSection = state.sections.find((s) => s.id === sectionId);
-
   if (currentSection) {
     if (DOM.currentSectionTitle) DOM.currentSectionTitle.textContent = currentSection.name;
     if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = currentSection.name;
@@ -106,11 +287,11 @@ async function switchSection(sectionId, autoFocus = true) {
 
   renderSections();
 
-  // Load lists (apartados)
   state.lists = await window.DB.getLists(sectionId);
   if (state.lists.length === 0) {
     const defaultList = await window.DB.addList(sectionId, 'General');
     state.lists = [defaultList];
+    bgSync(() => window.SupabaseClient.upsertList(defaultList));
   }
 
   const savedListId = localStorage.getItem(`last_list_${sectionId}`);
@@ -122,7 +303,6 @@ async function switchSection(sectionId, autoFocus = true) {
 }
 
 function renderSections() {
-  // 1. Render Desktop Sections (Centered with dot and rounded indicator, no edit/delete icons inside)
   if (DOM.sectionsList) {
     DOM.sectionsList.innerHTML = '';
     state.sections.forEach((section) => {
@@ -133,16 +313,11 @@ function renderSections() {
         <span class="sec-dot"></span>
         <span class="sec-name">${escapeHTML(section.name)}</span>
       `;
-
-      item.addEventListener('click', () => {
-        switchSection(section.id);
-      });
-
+      item.addEventListener('click', () => switchSection(section.id));
       DOM.sectionsList.appendChild(item);
     });
   }
 
-  // 2. Render Mobile Sections Panel (Clean rows with dot, no edit/delete icons inside)
   if (DOM.mobileSectionsList) {
     DOM.mobileSectionsList.innerHTML = '';
     state.sections.forEach((section) => {
@@ -155,12 +330,10 @@ function renderSections() {
           <span>${escapeHTML(section.name)}</span>
         </div>
       `;
-
       item.addEventListener('click', () => {
         switchSection(section.id);
         closeSidebar();
       });
-
       DOM.mobileSectionsList.appendChild(item);
     });
   }
@@ -187,6 +360,7 @@ function openNewSectionModal() {
           const newSec = await window.DB.addSection(name);
           state.sections = await window.DB.getSections();
           closeModal();
+          bgSync(() => window.SupabaseClient.upsertSection(newSec));
           await switchSection(newSec.id);
         }
       }
@@ -221,6 +395,7 @@ function openRenameSectionModal(section) {
           }
           renderSections();
           closeModal();
+          bgSync(() => window.SupabaseClient.upsertSection({ ...section, name }));
         }
       }
     ]
@@ -233,9 +408,7 @@ function openDeleteSectionModal(section) {
     openModal({
       title: 'No se puede eliminar',
       bodyHTML: `<p style="font-family: var(--font-body); font-size: 14px; color: var(--text-main);">Debes tener al menos una sección en la aplicación.</p>`,
-      footerButtons: [
-        { label: 'Entendido', className: 'btn-primary', onClick: closeModal }
-      ]
+      footerButtons: [{ label: 'Entendido', className: 'btn-primary', onClick: closeModal }]
     });
     return;
   }
@@ -256,9 +429,11 @@ function openDeleteSectionModal(section) {
         label: 'Eliminar',
         className: 'btn-danger',
         onClick: async () => {
-          await window.DB.deleteSection(section.id);
+          const sectionId = section.id;
+          await window.DB.deleteSection(sectionId);
           state.sections = await window.DB.getSections();
           closeModal();
+          bgSync(() => window.SupabaseClient.deleteSection(sectionId));
           const nextSec = state.sections[0];
           await switchSection(nextSec.id);
         }
@@ -267,17 +442,13 @@ function openDeleteSectionModal(section) {
   });
 }
 
-// ==================== LISTS (APARTADOS) MANAGEMENT ====================
+// ==================== LISTS (APARTADOS) ====================
 async function switchList(listId, autoFocus = true) {
   state.currentListId = listId;
   localStorage.setItem(`last_list_${state.currentSectionId}`, listId);
-
   renderListsTabs();
   await loadTasks();
-
-  if (autoFocus) {
-    focusTaskInput();
-  }
+  if (autoFocus) focusTaskInput();
 }
 
 function renderListsTabs() {
@@ -292,18 +463,15 @@ function renderListsTabs() {
         ${ICONS.dots}
       </span>
     `;
-
     tab.addEventListener('click', (e) => {
       if (e.target.closest('.tab-btn-options')) return;
       switchList(list.id);
     });
-
     const btnOptions = tab.querySelector(`[data-list-options="${list.id}"]`);
     btnOptions.addEventListener('click', (e) => {
       e.stopPropagation();
       openListOptionsModal(list);
     });
-
     DOM.listsTabs.appendChild(tab);
   });
 }
@@ -329,6 +497,7 @@ function openNewListModal() {
           const newList = await window.DB.addList(state.currentSectionId, name);
           state.lists = await window.DB.getLists(state.currentSectionId);
           closeModal();
+          bgSync(() => window.SupabaseClient.upsertList(newList));
           await switchList(newList.id);
         }
       }
@@ -355,9 +524,11 @@ function openListOptionsModal(list) {
             return;
           }
           if (confirm(`¿Eliminar el apartado "${list.name}" y todas sus tareas?`)) {
-            await window.DB.deleteList(list.id);
+            const listId = list.id;
+            await window.DB.deleteList(listId);
             state.lists = await window.DB.getLists(state.currentSectionId);
             closeModal();
+            bgSync(() => window.SupabaseClient.deleteList(listId));
             await switchList(state.lists[0].id);
           }
         }
@@ -374,13 +545,14 @@ function openListOptionsModal(list) {
           state.lists = await window.DB.getLists(state.currentSectionId);
           renderListsTabs();
           closeModal();
+          bgSync(() => window.SupabaseClient.upsertList({ ...list, name }));
         }
       }
     ]
   });
 }
 
-// ==================== TASKS MANAGEMENT ====================
+// ==================== TASKS ====================
 async function loadTasks() {
   if (!state.currentListId) {
     state.tasks = [];
@@ -395,16 +567,12 @@ function renderTasks() {
   const activeTasks = state.tasks.filter((t) => !t.done);
   const completedTasks = state.tasks.filter((t) => t.done);
 
-  // Update tasks counter badge ("1 pendiente · 2 completadas")
   if (DOM.tasksCounterBadge) {
     const pCount = activeTasks.length;
     const cCount = completedTasks.length;
-    const pText = `${pCount} ${pCount === 1 ? 'pendiente' : 'pendientes'}`;
-    const cText = `${cCount} ${cCount === 1 ? 'completada' : 'completadas'}`;
-    DOM.tasksCounterBadge.textContent = `${pText} · ${cText}`;
+    DOM.tasksCounterBadge.textContent = `${pCount} ${pCount === 1 ? 'pendiente' : 'pendientes'} · ${cCount} ${cCount === 1 ? 'completada' : 'completadas'}`;
   }
 
-  // Render Active Tasks
   DOM.activeTasksList.innerHTML = '';
   if (activeTasks.length === 0 && completedTasks.length === 0) {
     DOM.emptyState.classList.add('visible');
@@ -412,18 +580,13 @@ function renderTasks() {
     DOM.emptyState.classList.remove('visible');
   }
 
-  activeTasks.forEach((task) => {
-    DOM.activeTasksList.appendChild(createTaskElement(task));
-  });
+  activeTasks.forEach((task) => DOM.activeTasksList.appendChild(createTaskElement(task)));
 
-  // Render Completed Tasks
   DOM.completedTasksList.innerHTML = '';
   if (completedTasks.length > 0) {
     DOM.completedSection.classList.add('visible');
     DOM.completedCountLabel.textContent = `COMPLETADAS (${completedTasks.length})`;
-    completedTasks.forEach((task) => {
-      DOM.completedTasksList.appendChild(createTaskElement(task));
-    });
+    completedTasks.forEach((task) => DOM.completedTasksList.appendChild(createTaskElement(task)));
   } else {
     DOM.completedSection.classList.remove('visible');
   }
@@ -440,40 +603,31 @@ function createTaskElement(task) {
 
   item.innerHTML = `
     <button class="task-checkbox-btn" aria-label="${task.done ? 'Marcar como pendiente' : 'Marcar como hecha'}">
-      <div class="task-circle">
-        ${ICONS.check}
-      </div>
+      <div class="task-circle">${ICONS.check}</div>
     </button>
     <div class="task-content">
       <div class="task-title">${escapeHTML(task.title)}</div>
       ${noteSnippet}
     </div>
     <div class="task-actions">
-      <button class="btn-task-action" title="Editar tarea">
-        ${ICONS.edit}
-      </button>
+      <button class="btn-task-action" title="Editar tarea">${ICONS.edit}</button>
     </div>
   `;
 
-  // Checkbox toggle
   const chkBtn = item.querySelector('.task-checkbox-btn');
   chkBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleTaskDone(task);
   });
 
-  // Click on card opens edit modal
-  item.addEventListener('click', () => {
-    openEditTaskModal(task);
-  });
-
+  item.addEventListener('click', () => openEditTaskModal(task));
   return item;
 }
 
 async function toggleTaskDone(task) {
-  const newDoneStatus = !task.done;
-  await window.DB.updateTask(task.id, { done: newDoneStatus });
+  const updated = await window.DB.updateTask(task.id, { done: !task.done });
   await loadTasks();
+  bgSync(() => window.SupabaseClient.upsertTask(updated));
 }
 
 async function handleAddTask(e) {
@@ -481,13 +635,12 @@ async function handleAddTask(e) {
   const title = DOM.taskInput.value.trim();
   if (!title) return;
 
-  await window.DB.addTask(state.currentListId, title, '');
-
+  const newTask = await window.DB.addTask(state.currentListId, title, '');
   DOM.taskInput.value = '';
   await loadTasks();
   focusTaskInput();
-
   DOM.tasksScrollContainer.scrollTop = 0;
+  bgSync(() => window.SupabaseClient.upsertTask(newTask));
 }
 
 function openEditTaskModal(task) {
@@ -509,10 +662,12 @@ function openEditTaskModal(task) {
         className: 'btn-danger',
         onClick: async () => {
           if (confirm('¿Eliminar esta tarea?')) {
-            await window.DB.deleteTask(task.id);
+            const taskId = task.id;
+            await window.DB.deleteTask(taskId);
             closeModal();
             await loadTasks();
             focusTaskInput();
+            bgSync(() => window.SupabaseClient.deleteTask(taskId));
           }
         }
       },
@@ -525,17 +680,12 @@ function openEditTaskModal(task) {
           const noteInput = document.getElementById('modal-task-note');
           const newTitle = titleInput ? titleInput.value.trim() : '';
           const newNote = noteInput ? noteInput.value.trim() : '';
-
           if (!newTitle) return;
-
-          await window.DB.updateTask(task.id, {
-            title: newTitle,
-            note: newNote
-          });
-
+          const updated = await window.DB.updateTask(task.id, { title: newTitle, note: newNote });
           closeModal();
           await loadTasks();
           focusTaskInput();
+          bgSync(() => window.SupabaseClient.upsertTask(updated));
         }
       }
     ]
@@ -545,9 +695,7 @@ function openEditTaskModal(task) {
 // ==================== UI HELPERS ====================
 function focusTaskInput() {
   setTimeout(() => {
-    if (DOM.taskInput) {
-      DOM.taskInput.focus();
-    }
+    if (DOM.taskInput) DOM.taskInput.focus();
   }, 50);
 }
 
@@ -572,7 +720,7 @@ function toggleCompletedAccordion() {
   DOM.completedToggleBtn.setAttribute('aria-expanded', state.isCompletedExpanded);
 }
 
-// ==================== MODAL SYSTEM ====================
+// ==================== MODAL ====================
 function openModal({ title, bodyHTML, footerButtons }) {
   DOM.modalTitle.textContent = title;
   DOM.modalBody.innerHTML = bodyHTML;
@@ -590,9 +738,7 @@ function openModal({ title, bodyHTML, footerButtons }) {
   DOM.modalContainer.classList.add('open');
 
   const firstInput = DOM.modalBody.querySelector('input, textarea');
-  if (firstInput) {
-    setTimeout(() => firstInput.focus(), 60);
-  }
+  if (firstInput) setTimeout(() => firstInput.focus(), 60);
 }
 
 function closeModal() {
@@ -612,14 +758,12 @@ function escapeHTML(str) {
     .replace(/'/g, '&#39;');
 }
 
-// ==================== EVENT BINDINGS ====================
+// ==================== EVENTS ====================
 function bindEvents() {
-  // Mobile panel toggles
   if (DOM.btnMenu) DOM.btnMenu.addEventListener('click', () => toggleSidebar(true));
   if (DOM.btnCloseSidebar) DOM.btnCloseSidebar.addEventListener('click', () => toggleSidebar(false));
   if (DOM.sidebarBackdrop) DOM.sidebarBackdrop.addEventListener('click', () => toggleSidebar(false));
 
-  // Sections
   if (DOM.btnNewSection) DOM.btnNewSection.addEventListener('click', openNewSectionModal);
   if (DOM.btnNewSectionMobile) {
     DOM.btnNewSectionMobile.addEventListener('click', () => {
@@ -628,28 +772,17 @@ function bindEvents() {
     });
   }
 
-  // Rename & Delete current section from title row buttons
   if (DOM.btnRenameCurrentSection) {
-    DOM.btnRenameCurrentSection.addEventListener('click', () => {
-      openRenameSectionModal(getCurrentSection());
-    });
+    DOM.btnRenameCurrentSection.addEventListener('click', () => openRenameSectionModal(getCurrentSection()));
   }
   if (DOM.btnDeleteCurrentSection) {
-    DOM.btnDeleteCurrentSection.addEventListener('click', () => {
-      openDeleteSectionModal(getCurrentSection());
-    });
+    DOM.btnDeleteCurrentSection.addEventListener('click', () => openDeleteSectionModal(getCurrentSection()));
   }
 
-  // Lists (apartados)
   if (DOM.btnAddList) DOM.btnAddList.addEventListener('click', openNewListModal);
-
-  // Completed toggle accordion
   if (DOM.completedToggleBtn) DOM.completedToggleBtn.addEventListener('click', toggleCompletedAccordion);
-
-  // Add Task
   if (DOM.addTaskForm) DOM.addTaskForm.addEventListener('submit', handleAddTask);
 
-  // Modal close
   if (DOM.btnModalClose) DOM.btnModalClose.addEventListener('click', closeModal);
   if (DOM.modalContainer) {
     DOM.modalContainer.addEventListener('click', (e) => {
@@ -657,33 +790,25 @@ function bindEvents() {
     });
   }
 
-  // Keyboard shortcut: Escape closes modal or sidebar
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) {
-        closeModal();
-      } else if (DOM.sidebar && DOM.sidebar.classList.contains('open')) {
-        closeSidebar();
-      }
+      if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) closeModal();
+      else if (DOM.sidebar && DOM.sidebar.classList.contains('open')) closeSidebar();
     }
   });
 }
 
-// ==================== PWA SERVICE WORKER ====================
+// ==================== SERVICE WORKER ====================
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('./sw.js', { scope: './' })
-        .then((reg) => {
-          console.log('ServiceWorker registrado en scope:', reg.scope);
-        })
-        .catch((err) => {
-          console.warn('Registro de ServiceWorker falló:', err);
-        });
+        .then((reg) => console.log('SW registrado:', reg.scope))
+        .catch((err) => console.warn('SW falló:', err));
     });
   }
 }
 
-// Start app
+// ==================== BOOT ====================
 document.addEventListener('DOMContentLoaded', initApp);

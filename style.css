@@ -1085,6 +1085,133 @@ body, #app {
   border-color: var(--danger);
 }
 
+/* ==================== AUTH SCREEN ==================== */
+#auth-screen {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 999;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.auth-logo-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-logo {
+  height: 36px;
+  width: auto;
+}
+
+.auth-tagline {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: -8px;
+}
+
+.auth-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-line);
+  width: 100%;
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 10px 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+}
+
+.auth-tab.active {
+  color: var(--color-blue);
+  font-weight: 700;
+}
+
+.auth-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 15%;
+  width: 70%;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--accent-emerald);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 11px 18px;
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-error {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--danger);
+  min-height: 18px;
+  text-align: center;
+  margin: -6px 0;
+}
+
+/* Spinner de sincronización */
+.sync-indicator {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-blue);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 16px;
+  border-radius: 999px;
+  z-index: 400;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sync-indicator.visible {
+  opacity: 1;
+}
+
 /* ==================== RESPONSIVE RULES (< 768px) ==================== */
 @media (max-width: 768px) {
   .top-nav-bar {
