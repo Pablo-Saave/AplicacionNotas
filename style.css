@@ -1,15 +1,13 @@
 /* ==========================================================================
    style.css - klip Tasks PWA
-   Typography:
-   - Playfair Display: Solo para el título grande de la sección y apartados
-   - Arial, Arimo, Helvetica, sans-serif: Todo lo demás (navegación, tareas,
-     notas, etiquetas, botones, campos)
-   Palette:
-   - Fondo: Rosa niebla #F4E1DE con degradado radial al 10% azul tinta
+   Tipografía:
+   - Playfair Display: solo el título grande de la sección y los títulos de modal
+   - Arial / Arimo: todo lo demás
+   Paleta:
+   - Fondo: Marfil #FAF7F2 (plano, sin degradados)
    - Estructura y texto: Azul tinta #1D2B5C
-   - Tarjetas de tareas: Rosa más claro #FAF1EF con borde azul tinta al 12%
-   - Barra inferior "Agregar tarea": Azul tinta sólido #1D2B5C con placeholder rosa
-   - Acentos: Esmeralda #00A060 para acciones, checks e indicador de sección activa
+   - Rosa niebla #F4E1DE: solo como acento (píldora activa, botones "+" pequeños)
+   - Esmeralda #00A060: acciones, checks e indicador de sección activa
    - Sin sombras, sin librerías externas.
    ========================================================================== */
 
@@ -55,8 +53,9 @@
 }
 
 :root {
-  --bg-page: #F4E1DE;
-  --bg-card: #FAF1EF;
+  --bg-page: #FAF7F2;
+  --pink: #F4E1DE;
+  --bg-card: #FAF7F2;
   --color-blue: #1D2B5C;
   --text-main: #1D2B5C;
   --text-muted: rgba(29, 43, 92, 0.70);
@@ -93,14 +92,9 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Fondo con degradado radial visible: azul tinta al 10% en esquinas superior izq e inferior der sobre rosa niebla */
+/* Fondo marfil plano */
 body, #app {
   background-color: var(--bg-page);
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(29, 43, 92, 0.10) 0%, transparent 48%),
-    radial-gradient(circle at 100% 100%, rgba(29, 43, 92, 0.10) 0%, transparent 48%);
-  background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 
 /* ==================== ROOT LAYOUT ==================== */
@@ -133,13 +127,17 @@ body, #app {
   align-items: center;
 }
 
-.brand-logo {
-  font-family: var(--font-title);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--color-blue);
-  line-height: 1;
+.brand-logo-img {
+  display: block;
+  height: 30px;
+  width: auto;
+}
+
+.mobile-logo-mark {
+  display: none;
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
 }
 
 /* Center: Sections Centered with dot & emerald bar */
@@ -570,11 +568,11 @@ body, #app {
   border-color: rgba(29, 43, 92, 0.35);
 }
 
-/* La píldora del apartado activo en azul tinta sólido con texto rosa niebla */
+/* Píldora del apartado activo: rosa niebla con texto azul tinta */
 .tab-btn.active {
-  background-color: var(--color-blue);
-  color: var(--bg-page);
-  border-color: var(--color-blue);
+  background-color: var(--pink);
+  color: var(--color-blue);
+  border-color: rgba(29, 43, 92, 0.18);
   font-weight: 600;
 }
 
@@ -602,8 +600,8 @@ body, #app {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1px solid var(--border-line);
-  background: transparent;
+  border: 1px solid rgba(29, 43, 92, 0.12);
+  background: var(--pink);
   color: var(--text-main);
   font-family: var(--font-body);
   font-size: 15px;
@@ -617,11 +615,10 @@ body, #app {
 }
 
 .btn-add-apartado:hover {
-  background-color: var(--hover-tint);
   border-color: var(--text-main);
 }
 
-/* ==================== TASKS AREA (CARDS #FAF1EF) ==================== */
+/* ==================== TASKS AREA (FILAS) ==================== */
 .tasks-scroll-container {
   width: 100%;
   flex: 1;
@@ -653,31 +650,31 @@ body, #app {
   color: var(--text-muted);
 }
 
-/* Tasks Cards */
+/* Lista de tareas: filas separadas por línea fina */
 .tasks-cards-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   width: 100%;
 }
 
-/* Las tareas dentro de una tarjeta de rosa más claro (#FAF1EF) con borde azul tinta al 12% */
 .task-item {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 15px 18px;
-  background-color: var(--bg-card); /* #FAF1EF */
-  border: 1px solid var(--border-card); /* rgba(29, 43, 92, 0.12) */
-  border-radius: 12px;
+  padding: 16px 6px;
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-line);
+  border-radius: 0;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
-/* El hover de las filas con un fondo azul tinta al 6% */
+/* Hover de las filas: azul tinta al 4% */
 .task-item:hover {
-  background-color: rgba(29, 43, 92, 0.06);
+  background-color: rgba(29, 43, 92, 0.04);
 }
 
 /* Los círculos de las tareas con borde azul tinta */
@@ -808,9 +805,8 @@ body, #app {
 
 /* ==================== COMPLETED SECTION ==================== */
 .completed-section {
-  margin-top: 32px;
-  border-top: 1px solid var(--border-line);
-  padding-top: 14px;
+  margin-top: 20px;
+  padding-top: 4px;
   display: none;
 }
 
@@ -852,7 +848,7 @@ body, #app {
   display: none;
   margin-top: 8px;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .completed-section.expanded .completed-tasks-cards {
@@ -903,10 +899,10 @@ body, #app {
   padding: 6px 0;
 }
 
-/* Placeholder en rosa niebla #F4E1DE */
+/* Placeholder en rosa niebla */
 .task-input::placeholder {
-  color: var(--bg-page);
-  opacity: 0.75;
+  color: var(--pink);
+  opacity: 0.8;
 }
 
 .btn-circle-submit {
@@ -1099,6 +1095,15 @@ body, #app {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+  }
+
+  .mobile-logo-mark {
+    display: block;
+  }
+
+  .mobile-user-actions {
+    margin-left: auto;
   }
 
   .section-header-area {

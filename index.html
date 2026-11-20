@@ -6,7 +6,7 @@
   <title>klip — Tareas</title>
 
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#1D2B5C">
+  <meta name="theme-color" content="#FAF7F2">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="klip">
@@ -24,7 +24,7 @@
     <header class="top-nav-bar">
       <!-- Left: Brand Logo -->
       <div class="nav-left">
-        <span class="brand-logo">klip</span>
+        <img class="brand-logo-img" src="./logo.svg" alt="klip" height="30">
       </div>
 
       <!-- Center: Sections Centered with Dot and Emerald Bar + Emerald '+' button (Desktop) -->
@@ -58,7 +58,8 @@
 
       <!-- Mobile Top Bar Content (Screen < 768px): Section Name & Trigger on Left, User & Logout on Right -->
       <div class="nav-mobile-row">
-        <button id="btn-menu" class="btn-mobile-section-trigger" aria-label="Abrir menú de secciones">
+        <img class="mobile-logo-mark" src="./logo-mark.svg" alt="klip" height="26">
+        <button id="btn-menu" class="btn-mobile-section-trigger" aria-label="Abrir menú de secciones" aria-expanded="false" aria-controls="sidebar">
           <span id="current-section-title" class="mobile-section-name">Personal</span>
           <svg class="trigger-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="6 9 12 15 18 9"></polyline>
@@ -142,7 +143,7 @@
             <p class="empty-text">No hay tareas pendientes en este apartado</p>
           </div>
 
-          <!-- Active Tasks Cards (Lighter pink cards with 12% ink blue border) -->
+          <!-- Active tasks: filas simples separadas por línea fina -->
           <div id="active-tasks-list" class="tasks-cards-list">
             <!-- Rendered dynamically -->
           </div>
@@ -163,7 +164,7 @@
         </div>
       </div>
 
-      <!-- Bottom Fixed Add Task Bar (Solid Ink Blue #1D2B5C with Rosa Niebla placeholder) -->
+      <!-- Barra fija inferior "Agregar tarea" (azul tinta) -->
       <footer class="bottom-dock">
         <form id="add-task-form" class="add-task-dock-pill" autocomplete="off">
           <input 

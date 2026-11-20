@@ -1,31 +1,17 @@
 {
-  "name": "Tareas",
-  "short_name": "Tareas",
-  "description": "PWA de tareas minimalista y ultra rápida estilo Google Tasks",
+  "name": "klip",
+  "short_name": "klip",
+  "description": "klip: tareas minimalistas, rápidas y sin conexión",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F4E1DE",
-  "theme_color": "#1D2B5C",
+  "background_color": "#FAF7F2",
+  "theme_color": "#FAF7F2",
   "icons": [
-    {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }
