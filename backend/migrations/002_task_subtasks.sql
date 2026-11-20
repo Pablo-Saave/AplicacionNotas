@@ -1,5 +1,5 @@
 -- Agrega soporte para subtareas a una instalación existente.
--- Ejecutar una sola vez en Supabase SQL Editor antes de desplegar el frontend.
+-- Es idempotente: se puede reejecutar para asegurar la columna y refrescar PostgREST.
 begin;
 
 alter table public.tasks add column if not exists parent_task_id uuid;
@@ -22,5 +22,7 @@ begin
       references public.tasks (id, user_id, list_id) on delete cascade;
   end if;
 end $$;
+
+notify pgrst, 'reload schema';
 
 commit;
