@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://gcmdlpaehqiujymxiysj.supabase.co; manifest-src 'self'; worker-src 'self'">
   <title>klip — Tareas</title>
 
   <!-- PWA Meta Tags -->
@@ -11,8 +12,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="klip">
   <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="./public/icon.svg">
+  <link rel="apple-touch-icon" href="./public/icon-192.png">
 
   <!-- Local CSS with @font-face -->
   <link rel="stylesheet" href="./style.css">
@@ -24,7 +25,7 @@
     <header class="top-nav-bar">
       <!-- Left: Brand Logo -->
       <div class="nav-left">
-        <img class="brand-logo-img" src="./logo.svg" alt="klip" height="28">
+        <img class="brand-logo-img" src="./public/logo.svg" alt="klip" height="28">
       </div>
 
       <!-- Center: Sections Centered with Dot and Emerald Indicator + Emerald '+' button (Desktop) -->
@@ -46,7 +47,7 @@
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
           </button>
-          <button id="btn-logout" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="cerrarSesion()">
+          <button id="btn-logout" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
               <polyline points="16 17 21 12 16 7"></polyline>
@@ -58,7 +59,7 @@
 
       <!-- Mobile Top Bar Content (Screen < 768px) -->
       <div class="nav-mobile-row">
-        <img class="mobile-logo-mark" src="./logo-mark.svg" alt="klip" height="26">
+        <img class="mobile-logo-mark" src="./public/logo-mark.svg" alt="klip" height="26">
         <button id="btn-menu" class="btn-mobile-section-trigger" aria-label="Abrir menú de secciones">
           <span id="current-section-title" class="mobile-section-name">Personal</span>
           <svg class="trigger-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -73,7 +74,7 @@
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
           </button>
-          <button id="btn-logout-mobile" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="cerrarSesion()">
+          <button id="btn-logout-mobile" class="nav-circle-btn" title="Cerrar sesión" aria-label="Cerrar sesión">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
               <polyline points="16 17 21 12 16 7"></polyline>
@@ -150,6 +151,15 @@
               +
             </button>
           </div>
+          <div class="section-utilities" aria-label="Vista y exportación">
+            <div class="view-switch" role="group" aria-label="Vista">
+              <button id="btn-view-tasks" class="utility-btn active" type="button">Tareas</button>
+              <button id="btn-view-calendar" class="utility-btn" type="button">Calendario</button>
+            </div>
+            <div class="export-actions">
+              <button id="btn-export-calendar" class="utility-btn" type="button">Exportar calendario (.ics)</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -157,6 +167,7 @@
       <div class="tasks-scroll-container" id="tasks-scroll-container">
         <div class="tasks-content-wrapper">
 
+          <div id="tasks-view">
           <!-- Simple centered empty state -->
           <div id="empty-state" class="empty-state">
             <p class="empty-text">No hay tareas pendientes en este apartado</p>
@@ -179,7 +190,18 @@
               <!-- Rendered dynamically -->
             </div>
           </div>
-
+          </div>
+          <section id="calendar-view" class="calendar-panel" aria-label="Calendario mensual" hidden>
+            <div class="calendar-heading">
+              <button id="btn-calendar-prev" class="utility-btn" type="button" aria-label="Mes anterior">‹</button>
+              <h2 id="calendar-month-label"></h2>
+              <button id="btn-calendar-next" class="utility-btn" type="button" aria-label="Mes siguiente">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+            </div>
+            <div id="calendar-grid" class="calendar-grid"></div>
+          </section>
         </div>
       </div>
 

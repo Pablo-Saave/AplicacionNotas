@@ -7,13 +7,20 @@
 const SUPABASE_URL = 'https://gcmdlpaehqiujymxiysj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_mh8HXeGkqjxJghs6IQ_R-g_byKeBZxQ';
 
+// Remove the long-lived token written by older versions; require a fresh login.
+localStorage.removeItem('klip_session');
+
 // ==================== HELPER HTTP ====================
 async function supaFetch(path, options = {}) {
   const session = getSession();
+  const isAuthRequest = path.startsWith('/auth/v1/');
   const headers = {
     'Content-Type': 'application/json',
     'apikey': SUPABASE_ANON_KEY,
-    'Authorization': session ? `Bearer ${session.access_token}` : `Bearer ${SUPABASE_ANON_KEY}`,
+    // Login/signup/refresh must not inherit an expired user's access token.
+    'Authorization': isAuthRequest
+      ? `Bearer ${SUPABASE_ANON_KEY}`
+      : (session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${SUPABASE_ANON_KEY}`),
     'Prefer': 'return=representation',
     ...options.headers
   };
@@ -25,26 +32,30 @@ async function supaFetch(path, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || err.error_description || 'Error Supabase');
+    const detail = [err.message, err.msg, err.error_description, err.details, err.hint].filter(Boolean).join(' — ');
+    throw new Error(detail || `Error Supabase (${res.status})`);
   }
 
-  // 204 No Content (DELETE, PATCH sin return)
-  if (res.status === 204) return null;
-  return res.json();
+  // PostgREST returns an empty body for 204 and for successful return=minimal upserts.
+  const responseBody = await res.text();
+  if (!responseBody.trim()) return null;
+  return JSON.parse(responseBody);
 }
 
 // ==================== SESSION MANAGEMENT ====================
 function saveSession(session) {
   if (session) {
-    localStorage.setItem('klip_session', JSON.stringify(session));
+    sessionStorage.setItem('klip_session', JSON.stringify(session));
   } else {
-    localStorage.removeItem('klip_session');
+    sessionStorage.removeItem('klip_session');
   }
+  // Remove the legacy persistent token written by earlier app versions.
+  localStorage.removeItem('klip_session');
 }
 
 function getSession() {
   try {
-    return JSON.parse(localStorage.getItem('klip_session'));
+    return JSON.parse(sessionStorage.getItem('klip_session'));
   } catch {
     return null;
   }
@@ -52,7 +63,7 @@ function getSession() {
 
 function getCurrentUserId() {
   const session = getSession();
-  return session ? session.user.id : null;
+  return session?.user?.id || null;
 }
 
 function isLoggedIn() {
@@ -148,7 +159,7 @@ async function upsertTask(task) {
   await supaFetch('/rest/v1/tasks', {
     method: 'POST',
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ ...task, user_id: userId })
+    body: JSON.stringify({ ...task, due_date: task.due_date || null, due_time: task.due_time ? task.due_time.slice(0, 5) : null, user_id: userId })
   });
 }
 
@@ -177,7 +188,7 @@ async function pushAllData(localData) {
 
   const sectionsWithUser = localData.sections.map(s => ({ ...s, user_id: userId }));
   const listsWithUser = localData.lists.map(l => ({ ...l, user_id: userId }));
-  const tasksWithUser = localData.tasks.map(t => ({ ...t, user_id: userId }));
+  const tasksWithUser = localData.tasks.map(t => ({ ...t, due_date: t.due_date || null, due_time: t.due_time ? t.due_time.slice(0, 5) : null, user_id: userId }));
 
   // Upsert in order (sections first, then lists, then tasks)
   if (sectionsWithUser.length > 0) {

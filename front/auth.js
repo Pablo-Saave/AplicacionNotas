@@ -20,7 +20,7 @@ function renderAuthScreen() {
   screen.innerHTML = `
     <div class="auth-card">
       <div class="auth-logo-wrap">
-        <img src="./logo.svg" alt="klip" class="auth-logo">
+        <img src="./public/logo.svg" alt="klip" class="auth-logo">
       </div>
       <p class="auth-tagline">Tus tareas, en un solo lugar.</p>
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'klip-pwa-v6';
+const CACHE_NAME = 'klip-pwa-v12';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -9,12 +9,12 @@ const ASSETS_TO_CACHE = [
   './supabase.js',
   './auth.js',
   './manifest.json',
-  './icon.svg',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-maskable-512.png',
-  './logo.svg',
-  './logo-mark.svg',
+  './public/icon.svg',
+  './public/icon-192.png',
+  './public/icon-512.png',
+  './public/icon-maskable-512.png',
+  './public/logo.svg',
+  './public/logo-mark.svg',
   './fonts/arimo-400.woff2',
   './fonts/arimo-500.woff2',
   './fonts/arimo-700.woff2'

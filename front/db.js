@@ -6,8 +6,8 @@
  * - tasks (id, list_id, title, note, done, due_date, due_time, position, updated_at)
  */
 
-const DB_NAME = 'TareasPWA_DB';
-const DB_VERSION = 1;
+const DB_NAME_PREFIX = 'Klip_User_';
+const DB_VERSION = 2;
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -23,21 +23,29 @@ function generateUUID() {
 class Database {
   constructor() {
     this.db = null;
+    this.userId = null;
   }
 
-  async init() {
-    if (this.db) return this.db;
+  async init(userId) {
+    if (!userId) throw new Error('Se requiere una sesión de usuario para abrir la base local.');
+    if (this.db && this.userId === userId) return this.db;
+    this.close();
+    this.userId = userId;
+    const dbName = `${DB_NAME_PREFIX}${userId}`;
 
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const request = indexedDB.open(dbName, DB_VERSION);
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
 
-        // sections table
+        // Add sync metadata to existing records through the versioned store upgrade.
         if (!db.objectStoreNames.contains('sections')) {
           const sectionStore = db.createObjectStore('sections', { keyPath: 'id' });
           sectionStore.createIndex('position', 'position', { unique: false });
+        }
+        if (event.oldVersion < 2) {
+          // Existing rows are normalized lazily by init after the upgrade.
         }
 
         // lists table
@@ -60,7 +68,7 @@ class Database {
       request.onsuccess = async (event) => {
         this.db = event.target.result;
         try {
-          await this.seedDefaultData();
+          await this.migrateRecords();
           resolve(this.db);
         } catch (err) {
           reject(err);
@@ -72,6 +80,27 @@ class Database {
         reject(event.target.error);
       };
     });
+  }
+
+  close() {
+    if (this.db) this.db.close();
+    this.db = null;
+    this.userId = null;
+  }
+
+  async migrateRecords() {
+    // Legacy sections/lists had no timestamp; let existing server records win their first merge.
+    const stamp = new Date(0).toISOString();
+    for (const name of ['sections', 'lists', 'tasks']) {
+      for (const row of await this._getAll(name)) {
+        const patch = { ...row, updated_at: row.updated_at || stamp, deleted: !!row.deleted };
+        if (name === 'tasks') {
+          if (patch.due_date === '') patch.due_date = null;
+          if (patch.due_time === '') patch.due_time = null;
+        }
+        await this._put(name, patch);
+      }
+    }
   }
 
   // Seed default 4 sections if database is fresh
@@ -197,7 +226,7 @@ class Database {
   // --- SECTIONS ---
   async getSections() {
     const list = await this._getAll('sections');
-    return list.sort((a, b) => a.position - b.position);
+    return list.filter((row) => !row.deleted).sort((a, b) => a.position - b.position);
   }
 
   async addSection(name) {
@@ -206,7 +235,9 @@ class Database {
     const newSection = {
       id: generateUUID(),
       name: name.trim(),
-      position
+      position,
+      updated_at: new Date().toISOString(),
+      deleted: false
     };
     await this._put('sections', newSection);
     // Automatically create a default list for the section
@@ -217,18 +248,19 @@ class Database {
   async updateSection(id, updates) {
     const section = await this._get('sections', id);
     if (!section) throw new Error('Sección no encontrada');
-    const updated = { ...section, ...updates };
+    const updated = { ...section, ...updates, updated_at: new Date().toISOString() };
     await this._put('sections', updated);
     return updated;
   }
 
   async deleteSection(id) {
     // Cascading delete: lists and their tasks
-    const lists = await this.getLists(id);
+    const lists = (await this._getAll('lists')).filter((list) => list.section_id === id && !list.deleted);
     for (const list of lists) {
       await this.deleteList(list.id);
     }
-    await this._delete('sections', id);
+    const section = await this._get('sections', id);
+    await this._put('sections', { ...section, deleted: true, updated_at: new Date().toISOString() });
     return true;
   }
 
@@ -240,7 +272,7 @@ class Database {
       const index = store.index('section_id');
       const req = index.getAll(sectionId);
       req.onsuccess = () => {
-        const lists = req.result || [];
+        const lists = (req.result || []).filter((row) => !row.deleted);
         lists.sort((a, b) => a.position - b.position);
         resolve(lists);
       };
@@ -255,7 +287,9 @@ class Database {
       id: generateUUID(),
       section_id: sectionId,
       name: name.trim(),
-      position
+      position,
+      updated_at: new Date().toISOString(),
+      deleted: false
     };
     await this._put('lists', newList);
     return newList;
@@ -264,18 +298,19 @@ class Database {
   async updateList(id, updates) {
     const list = await this._get('lists', id);
     if (!list) throw new Error('Apartado no encontrado');
-    const updated = { ...list, ...updates };
+    const updated = { ...list, ...updates, updated_at: new Date().toISOString() };
     await this._put('lists', updated);
     return updated;
   }
 
   async deleteList(id) {
     // Cascading delete tasks belonging to this list
-    const tasks = await this.getTasks(id);
+    const tasks = (await this._getAll('tasks')).filter((task) => task.list_id === id && !task.deleted);
     for (const task of tasks) {
-      await this._delete('tasks', task.id);
+      await this.deleteTask(task.id);
     }
-    await this._delete('lists', id);
+    const list = await this._get('lists', id);
+    await this._put('lists', { ...list, deleted: true, updated_at: new Date().toISOString() });
     return true;
   }
 
@@ -287,7 +322,7 @@ class Database {
       const index = store.index('list_id');
       const req = index.getAll(listId);
       req.onsuccess = () => {
-        const tasks = req.result || [];
+        const tasks = (req.result || []).filter((row) => !row.deleted);
         tasks.sort((a, b) => a.position - b.position);
         resolve(tasks);
       };
@@ -304,10 +339,10 @@ class Database {
       title: title.trim(),
       note: (note || '').trim(),
       done: false,
-      due_date: '',
-      due_time: '',
+      due_date: null,
+      due_time: null,
       position,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(), deleted: false
     };
     await this._put('tasks', newTask);
     return newTask;
@@ -326,7 +361,9 @@ class Database {
   }
 
   async deleteTask(id) {
-    await this._delete('tasks', id);
+    const task = await this._get('tasks', id);
+    if (!task) return true;
+    await this._put('tasks', { ...task, deleted: true, updated_at: new Date().toISOString() });
     return true;
   }
 }
