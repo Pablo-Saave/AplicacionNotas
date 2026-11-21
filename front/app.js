@@ -68,6 +68,7 @@ const DOM = {
   bottomDock: document.querySelector('.bottom-dock'),
   btnViewTasks: document.getElementById('btn-view-tasks'),
   btnViewCalendar: document.getElementById('btn-view-calendar'),
+  btnSyncNow: document.getElementById('btn-sync-now'),
   btnReverseTaskOrder: document.getElementById('btn-reverse-task-order'),
   taskOrderActions: document.getElementById('task-order-actions'),
   btnCalendarPrev: document.getElementById('btn-calendar-prev'),
@@ -180,15 +181,16 @@ window.__onAuthSuccess = async function () {
  * Pull data from Supabase and merge into IndexedDB.
  * Strategy: Supabase is authoritative on first login; afterwards it's local-first.
  */
-function syncFromSupabase() {
+function syncFromSupabase({ manual = false, quiet = false } = {}) {
   if (fullSyncInFlight) return fullSyncInFlight;
   fullSyncInFlight = enqueueSyncWork(async () => {
     if (!window.SupabaseClient.getSession()) return;
     if (!navigator.onLine) {
-      showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
+      if (manual) showSync('Sin conexión; no se pudo actualizar');
+      else if (!quiet) showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
       return;
     }
-    showSync('Sincronizando...');
+    if (!quiet) showSync('Sincronizando...');
     try {
       const session = window.SupabaseClient.getSession();
       const payload = JSON.parse(atob(session.access_token.split('.')[1]));
@@ -199,20 +201,25 @@ function syncFromSupabase() {
       const remote = await window.SupabaseClient.pullAllData();
       if (!remote) { hideSync(); return; }
 
-      await mergeData(remote);
+      const remoteChangedLocalData = await mergeData(remote);
       await pushLocalToSupabase();
       localStorage.removeItem(accountStorageKey('sync_pending'));
-      hideSync();
+      if (remoteChangedLocalData && appEventsBound && !state.taskDetailId) await refreshVisibleData();
+      if (manual) {
+        showSync('Sincronizado');
+        setTimeout(hideSync, 1800);
+      } else if (!quiet) hideSync();
     } catch (err) {
       console.warn('Sync error:', err);
       localStorage.setItem(accountStorageKey('sync_pending'), '1');
-      showSync(`Error al sincronizar: ${err.message}`);
+      if (!quiet || manual) showSync(`Error al sincronizar: ${err.message}`);
     }
   }).finally(() => { fullSyncInFlight = null; });
   return fullSyncInFlight;
 }
 
 async function mergeData(remote) {
+  let changed = false;
   const normalize = (row, table) => {
     const value = { ...row, updated_at: row.updated_at || new Date(0).toISOString(), deleted: !!row.deleted };
     if (table === 'tasks') {
@@ -230,9 +237,32 @@ async function mergeData(remote) {
       const local = await window.DB._get(table, row.id).catch(() => null);
       if (!local || Date.parse(incoming.updated_at) > Date.parse(local.updated_at || 0)) {
         await window.DB._put(table, incoming);
+        changed = true;
       }
     }
   }
+  return changed;
+}
+
+async function refreshVisibleData() {
+  const previousSectionId = state.currentSectionId;
+  const previousListId = state.currentListId;
+  state.sections = await window.DB.getSections();
+  if (!state.sections.length) return;
+
+  const section = state.sections.find((row) => row.id === previousSectionId) || state.sections[0];
+  state.currentSectionId = section.id;
+  localStorage.setItem(accountStorageKey('last_section_id'), section.id);
+  if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = section.name;
+  renderSections();
+
+  state.lists = await window.DB.getLists(section.id);
+  if (!state.lists.length) return;
+  const list = state.lists.find((row) => row.id === previousListId) || state.lists[0];
+  state.currentListId = list.id;
+  localStorage.setItem(accountStorageKey(`last_list_${section.id}`), list.id);
+  renderListsTabs();
+  await loadTasks();
 }
 
 async function pushLocalToSupabase() {
@@ -281,17 +311,19 @@ function bgSync(fn) {
 }
 
 window.addEventListener('online', () => {
-  if (window.SupabaseClient.getSession()) syncFromSupabase();
+  if (window.SupabaseClient.getSession() && !state.taskDetailDirty && !state.taskDetailId) syncFromSupabase({ quiet: true });
   else if (state.offlineMode) showSync('Internet disponible; inicia sesión para sincronizar tus cambios');
 });
-window.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && navigator.onLine && localStorage.getItem(accountStorageKey('sync_pending')) === '1') {
-    syncFromSupabase();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && navigator.onLine && window.SupabaseClient.getSession()
+    && !state.taskDetailDirty && !state.taskDetailId) {
+    syncFromSupabase({ quiet: true });
   }
 });
 setInterval(() => {
-  if (navigator.onLine && localStorage.getItem(accountStorageKey('sync_pending')) === '1' && window.SupabaseClient.getSession()) {
-    syncFromSupabase();
+  if (document.visibilityState === 'visible' && navigator.onLine && window.SupabaseClient.getSession()
+    && !state.taskDetailDirty && !state.taskDetailId) {
+    syncFromSupabase({ quiet: true });
   }
 }, 30000);
 
@@ -1144,6 +1176,24 @@ function escapeHTML(str) {
 
 // ==================== EVENTS ====================
 function bindEvents() {
+  if (DOM.btnSyncNow) DOM.btnSyncNow.addEventListener('click', async () => {
+    if (state.taskDetailDirty) {
+      showSync('Guarda los cambios de la tarea antes de sincronizar');
+      return;
+    }
+    if (!window.SupabaseClient.getSession()) {
+      showSync('Inicia sesión para sincronizar');
+      return;
+    }
+    DOM.btnSyncNow.disabled = true;
+    DOM.btnSyncNow.classList.add('syncing');
+    try {
+      await syncFromSupabase({ manual: true });
+    } finally {
+      DOM.btnSyncNow.disabled = false;
+      DOM.btnSyncNow.classList.remove('syncing');
+    }
+  });
   [DOM.btnLogout, DOM.btnLogoutMobile].forEach((button) => {
     if (button) button.addEventListener('click', cerrarSesion);
   });

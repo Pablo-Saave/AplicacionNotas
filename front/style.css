@@ -543,7 +543,7 @@ body, #app {
   display: none;
 }
 
-.section-utilities, .view-switch, .export-actions {
+.section-utilities, .view-switch, .export-actions, .utility-trailing-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -553,6 +553,32 @@ body, #app {
   justify-content: space-between;
   flex-wrap: wrap;
 }
+
+.utility-trailing-actions {
+  margin-left: auto;
+}
+
+.sync-now-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sync-now-btn svg { width: 19px; height: 19px; }
+.sync-now-btn:hover { background: var(--hover-tint); color: var(--color-blue); }
+.sync-now-btn:disabled { opacity: .55; cursor: wait; }
+.sync-now-btn.syncing svg { animation: sync-rotate .8s linear infinite; }
+
+@keyframes sync-rotate { to { transform: rotate(360deg); } }
 
 .utility-btn {
   border: 1px solid var(--border-line);
@@ -1443,7 +1469,7 @@ body, #app {
 .lists-tabs { flex: 1; }
 .apartados-strip .action-menu-trigger { color: var(--text-muted); }
 .task-order-actions[hidden] { display: none !important; }
-.task-order-actions { display: flex; align-items: center; margin-left: auto; }
+.task-order-actions { display: flex; align-items: center; margin-left: 0; }
 .task-order-btn { width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .task-order-btn svg { width: 20px; height: 20px; }
 .task-order-btn:hover { background: var(--hover-tint); color: var(--color-blue); }
