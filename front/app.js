@@ -89,6 +89,15 @@ const DOM = {
 };
 
 let appEventsBound = false;
+let syncQueue = Promise.resolve();
+let fullSyncInFlight = null;
+let backgroundSyncTimer = null;
+
+function enqueueSyncWork(work) {
+  const operation = syncQueue.catch(() => {}).then(work);
+  syncQueue = operation.catch(() => {});
+  return operation;
+}
 
 // ==================== SVG ICONS ====================
 const ICONS = {
@@ -171,36 +180,36 @@ window.__onAuthSuccess = async function () {
  * Pull data from Supabase and merge into IndexedDB.
  * Strategy: Supabase is authoritative on first login; afterwards it's local-first.
  */
-async function syncFromSupabase() {
-  if (!window.SupabaseClient.getSession()) return;
-  if (!navigator.onLine) {
-    showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
-    return;
-  }
-  showSync('Sincronizando...');
-  try {
-    // Try to refresh token silently
-    const session = window.SupabaseClient.getSession();
-    const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-    const expiresIn = payload.exp * 1000 - Date.now();
-    if (expiresIn < 60000) {
-      await window.SupabaseClient.refreshToken();
+function syncFromSupabase() {
+  if (fullSyncInFlight) return fullSyncInFlight;
+  fullSyncInFlight = enqueueSyncWork(async () => {
+    if (!window.SupabaseClient.getSession()) return;
+    if (!navigator.onLine) {
+      showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
+      return;
     }
-    if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Conéctate para volver a iniciar sesión.');
+    showSync('Sincronizando...');
+    try {
+      const session = window.SupabaseClient.getSession();
+      const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+      const expiresIn = payload.exp * 1000 - Date.now();
+      if (expiresIn < 60000) await window.SupabaseClient.refreshToken();
+      if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Conéctate para volver a iniciar sesión.');
 
-    const remote = await window.SupabaseClient.pullAllData();
-    if (!remote) { hideSync(); return; }
+      const remote = await window.SupabaseClient.pullAllData();
+      if (!remote) { hideSync(); return; }
 
-    await mergeData(remote);
-    await pushLocalToSupabase();
-    localStorage.removeItem(accountStorageKey('sync_pending'));
-
-    hideSync();
-  } catch (err) {
-    console.warn('Sync error:', err);
-    localStorage.setItem(accountStorageKey('sync_pending'), '1');
-    showSync(`Error al sincronizar: ${err.message}`);
-  }
+      await mergeData(remote);
+      await pushLocalToSupabase();
+      localStorage.removeItem(accountStorageKey('sync_pending'));
+      hideSync();
+    } catch (err) {
+      console.warn('Sync error:', err);
+      localStorage.setItem(accountStorageKey('sync_pending'), '1');
+      showSync(`Error al sincronizar: ${err.message}`);
+    }
+  }).finally(() => { fullSyncInFlight = null; });
+  return fullSyncInFlight;
 }
 
 async function mergeData(remote) {
@@ -253,17 +262,22 @@ function bgSync(fn) {
     showSync('Guardado en este dispositivo; inicia sesión para sincronizar');
     return;
   }
-  (async () => {
-    if (!window.SupabaseClient.isLoggedIn()) await window.SupabaseClient.refreshToken();
-    if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Inicia sesión de nuevo.');
-    await pushLocalToSupabase();
-    localStorage.removeItem(accountStorageKey('sync_pending'));
-    showSync('Sincronizado');
-    setTimeout(hideSync, 2200);
-  })().catch((err) => {
-    console.warn('Background sync queued:', err);
-    showSync(`Guardado localmente; error de sincronización: ${err.message}`);
-  });
+  clearTimeout(backgroundSyncTimer);
+  backgroundSyncTimer = setTimeout(() => {
+    backgroundSyncTimer = null;
+    enqueueSyncWork(async () => {
+      if (!window.SupabaseClient.getSession()) return;
+      if (!window.SupabaseClient.isLoggedIn()) await window.SupabaseClient.refreshToken();
+      if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Inicia sesión de nuevo.');
+      await pushLocalToSupabase();
+      localStorage.removeItem(accountStorageKey('sync_pending'));
+      showSync('Sincronizado');
+      setTimeout(hideSync, 2200);
+    }).catch((err) => {
+      console.warn('Background sync queued:', err);
+      showSync(`Guardado localmente; error de sincronización: ${err.message}`);
+    });
+  }, 250);
 }
 
 window.addEventListener('online', () => {

@@ -8,6 +8,7 @@ const SUPABASE_URL = 'https://gcmdlpaehqiujymxiysj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_mh8HXeGkqjxJghs6IQ_R-g_byKeBZxQ';
 
 const SESSION_STORAGE_KEY = 'klip_session';
+let refreshInFlight = null;
 
 // ==================== HELPER HTTP ====================
 async function supaFetch(path, options = {}) {
@@ -48,7 +49,10 @@ async function supaFetch(path, options = {}) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     const detail = [err.message, err.msg, err.error_description, err.details, err.hint].filter(Boolean).join(' — ');
-    throw new Error(detail || `Error Supabase (${res.status})`);
+    const error = new Error(detail || `Error Supabase (${res.status})`);
+    error.status = res.status;
+    error.code = err.code || err.error || null;
+    throw error;
   }
 
   // PostgREST returns an empty body for 204 and for successful return=minimal upserts.
@@ -131,22 +135,40 @@ async function signOut() {
   saveSession(null);
 }
 
-async function refreshToken() {
-  const session = getSession();
-  if (!session?.refresh_token) return null;
-  try {
-    const data = await supaFetch('/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: session.refresh_token })
-    });
-    if (data.access_token) saveSession(data);
-    return data;
-  } catch (error) {
-    if (error.message.includes('conectar con Supabase') || error.message.includes('no respondi')) {
+function refreshToken() {
+  if (refreshInFlight) return refreshInFlight;
+  const performRefresh = async () => {
+    const session = getSession();
+    if (!session?.refresh_token) return null;
+    try {
+      const expiresIn = getAccessTokenExpiresIn(session);
+      // Another open tab may already have refreshed the shared localStorage session.
+      if (expiresIn > 60000) return session;
+      const data = await supaFetch('/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: session.refresh_token })
+      });
+      if (data.access_token) saveSession(data);
+      return data;
+    } catch (error) {
+      // Keep the refresh token across network/server errors; only discard a token Supabase rejected.
+      if (error.status === 400 && /refresh token|session/i.test(error.message)) saveSession(null);
       return null;
     }
-    saveSession(null);
-    return null;
+  };
+  const refresh = () => navigator.locks?.request
+    ? navigator.locks.request('klip-supabase-session-refresh', performRefresh)
+    : performRefresh();
+  refreshInFlight = refresh().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
+function getAccessTokenExpiresIn(session) {
+  try {
+    const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+    return payload.exp * 1000 - Date.now();
+  } catch {
+    return 0;
   }
 }
 

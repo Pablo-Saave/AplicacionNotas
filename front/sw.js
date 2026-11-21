@@ -1,4 +1,4 @@
-const CACHE_NAME = 'klip-pwa-v19';
+const CACHE_NAME = 'klip-pwa-v20';
 
 const ASSETS_TO_CACHE = [
   './',
