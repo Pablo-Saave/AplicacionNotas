@@ -96,13 +96,16 @@ class Database {
     const stamp = new Date(0).toISOString();
     for (const name of ['sections', 'lists', 'tasks']) {
       for (const row of await this._getAll(name)) {
-        const patch = { ...row, updated_at: row.updated_at || stamp, deleted: !!row.deleted };
+        const patch = { ...row };
+        let changed = false;
+        if (!patch.updated_at) { patch.updated_at = stamp; changed = true; }
+        if (patch.deleted !== !!row.deleted) { patch.deleted = !!row.deleted; changed = true; }
         if (name === 'tasks') {
-          if (patch.due_date === '') patch.due_date = null;
-          if (patch.due_time === '') patch.due_time = null;
-          if (patch.parent_task_id === undefined) patch.parent_task_id = null;
+          if (patch.due_date === '') { patch.due_date = null; changed = true; }
+          if (patch.due_time === '') { patch.due_time = null; changed = true; }
+          if (patch.parent_task_id === undefined) { patch.parent_task_id = null; changed = true; }
         }
-        await this._put(name, patch);
+        if (changed) await this._put(name, patch);
       }
     }
   }
@@ -320,15 +323,27 @@ class Database {
 
   // --- TASKS ---
   async getTasks(listId) {
+    const result = await this.getTasksWithSubtasks(listId);
+    return result.tasks;
+  }
+
+  async getTasksWithSubtasks(listId) {
     return new Promise((resolve, reject) => {
       const tx = this._transaction('tasks', 'readonly');
       const store = tx.objectStore('tasks');
       const index = store.index('list_id');
       const req = index.getAll(listId);
       req.onsuccess = () => {
-        const tasks = (req.result || []).filter((row) => !row.deleted && !row.parent_task_id);
+        const active = (req.result || []).filter((row) => !row.deleted);
+        const tasks = active.filter((row) => !row.parent_task_id);
         tasks.sort((a, b) => a.position - b.position);
-        resolve(tasks);
+        const subtasksByParent = {};
+        for (const row of active) {
+          if (!row.parent_task_id) continue;
+          (subtasksByParent[row.parent_task_id] ||= []).push(row);
+        }
+        for (const rows of Object.values(subtasksByParent)) rows.sort((a, b) => a.position - b.position);
+        resolve({ tasks, subtasksByParent });
       };
       req.onerror = () => reject(req.error);
     });

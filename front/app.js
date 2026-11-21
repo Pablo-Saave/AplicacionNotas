@@ -18,8 +18,11 @@ const state = {
   viewMode: 'tasks',
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   taskDetailId: null,
-  taskDetailDirty: false
+  taskDetailDirty: false,
+  offlineMode: false
 };
+
+const OFFLINE_USER_KEY = 'klip_offline_user_id';
 
 // ==================== DOM ====================
 const DOM = {
@@ -33,16 +36,15 @@ const DOM = {
   btnNewSectionMobile: document.getElementById('btn-new-section-mobile'),
   btnRenameCurrentSection: document.getElementById('btn-rename-current-section'),
   btnDeleteCurrentSection: document.getElementById('btn-delete-current-section'),
-  currentSectionTitle: document.getElementById('current-section-title'),
+  btnSectionMenu: document.getElementById('btn-section-menu'),
+  sectionActionsMenu: document.getElementById('section-actions-menu'),
   mainSectionTitle: document.getElementById('main-section-title'),
-  tasksCounterBadge: document.getElementById('tasks-counter-badge'),
   listsTabs: document.getElementById('lists-tabs'),
   btnAddList: document.getElementById('btn-add-list'),
   tasksScrollContainer: document.getElementById('tasks-scroll-container'),
   activeTasksList: document.getElementById('active-tasks-list'),
   completedSection: document.getElementById('completed-section'),
   completedToggleBtn: document.getElementById('completed-toggle-btn'),
-  completedCountLabel: document.getElementById('completed-count-label'),
   completedTasksList: document.getElementById('completed-tasks-list'),
   emptyState: document.getElementById('empty-state'),
   addTaskForm: document.getElementById('add-task-form'),
@@ -65,6 +67,7 @@ const DOM = {
   btnCalendarPrev: document.getElementById('btn-calendar-prev'),
   btnCalendarNext: document.getElementById('btn-calendar-next'),
   btnExportCalendar: document.getElementById('btn-export-calendar'),
+  exportActions: document.getElementById('export-actions'),
   taskDetailPage: document.getElementById('task-detail-page'),
   taskDetailForm: document.getElementById('task-detail-form'),
   taskDetailTitle: document.getElementById('detail-task-title'),
@@ -106,8 +109,22 @@ function hideSync() {
 }
 
 function accountStorageKey(key) {
-  const userId = window.SupabaseClient.getCurrentUserId();
+  const userId = window.SupabaseClient.getCurrentUserId() || localStorage.getItem(OFFLINE_USER_KEY);
   return `klip:${userId || 'guest'}:${key}`;
+}
+
+function closeActionMenus() {
+  document.querySelectorAll('.action-menu-popover').forEach((menu) => {
+    menu.hidden = true;
+    menu.parentElement.querySelector('.action-menu-trigger')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleActionMenu(trigger, menu) {
+  const opening = menu.hidden;
+  closeActionMenus();
+  menu.hidden = !opening;
+  trigger.setAttribute('aria-expanded', String(opening));
 }
 
 // ==================== AUTH INTEGRATION ====================
@@ -118,6 +135,8 @@ async function cerrarSesion() {
   } catch (e) {
     console.warn('Sign out error:', e);
   }
+  localStorage.removeItem(OFFLINE_USER_KEY);
+  state.offlineMode = false;
   window.DB.close();
   window.Auth.renderAuthScreen();
 }
@@ -127,9 +146,16 @@ window.cerrarSesion = cerrarSesion;
 window.__onAuthSuccess = async function () {
   const userId = window.SupabaseClient.getCurrentUserId();
   if (!userId) throw new Error('Supabase no devolvió el ID del usuario.');
+  localStorage.setItem(OFFLINE_USER_KEY, userId);
+  state.offlineMode = false;
   await window.DB.init(userId);
-  await syncFromSupabase();
+  const cachedSections = await window.DB.getSections();
+  const pulledBeforeFirstRender = !cachedSections.length && navigator.onLine;
+  if (pulledBeforeFirstRender) await syncFromSupabase();
   await initAppUI();
+  if (navigator.onLine) {
+    if (!pulledBeforeFirstRender) void syncFromSupabase();
+  } else showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
 };
 
 // ==================== SYNC ENGINE ====================
@@ -140,6 +166,10 @@ window.__onAuthSuccess = async function () {
  */
 async function syncFromSupabase() {
   if (!window.SupabaseClient.getSession()) return;
+  if (!navigator.onLine) {
+    showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
+    return;
+  }
   showSync('Sincronizando...');
   try {
     // Try to refresh token silently
@@ -149,6 +179,7 @@ async function syncFromSupabase() {
     if (expiresIn < 60000) {
       await window.SupabaseClient.refreshToken();
     }
+    if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Conéctate para volver a iniciar sesión.');
 
     const remote = await window.SupabaseClient.pullAllData();
     if (!remote) { hideSync(); return; }
@@ -210,7 +241,10 @@ function bgSync(fn) {
     showSync('Guardado sin conexión; pendiente de sincronizar');
     return;
   }
-  if (!window.SupabaseClient.getSession()) return;
+  if (!window.SupabaseClient.getSession()) {
+    showSync('Guardado en este dispositivo; inicia sesión para sincronizar');
+    return;
+  }
   (async () => {
     if (!window.SupabaseClient.isLoggedIn()) await window.SupabaseClient.refreshToken();
     if (!window.SupabaseClient.isLoggedIn()) throw new Error('La sesión expiró. Inicia sesión de nuevo.');
@@ -225,7 +259,8 @@ function bgSync(fn) {
 }
 
 window.addEventListener('online', () => {
-  if (localStorage.getItem(accountStorageKey('sync_pending')) === '1') syncFromSupabase();
+  if (window.SupabaseClient.getSession()) syncFromSupabase();
+  else if (state.offlineMode) showSync('Internet disponible; inicia sesión para sincronizar tus cambios');
 });
 window.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && navigator.onLine && localStorage.getItem(accountStorageKey('sync_pending')) === '1') {
@@ -244,23 +279,22 @@ async function initApp() {
     registerServiceWorker();
     installBackNavigationGuard();
 
-    // Refresh a stored session before opening that user's isolated local database.
-    let session = window.SupabaseClient.getSession();
-    if (session) {
-      let needsRefresh = !window.SupabaseClient.isLoggedIn();
-      try {
-        const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-        needsRefresh ||= payload.exp * 1000 - Date.now() < 300000;
-      } catch {
-        needsRefresh = true;
-      }
-      if (needsRefresh) await window.SupabaseClient.refreshToken();
-      session = window.SupabaseClient.getSession();
-      const userId = window.SupabaseClient.getCurrentUserId();
-      if (window.SupabaseClient.isLoggedIn() && userId) {
+    // Restore this session's local database before contacting the cloud.
+    const session = window.SupabaseClient.getSession();
+    const offlineUserId = !navigator.onLine ? localStorage.getItem(OFFLINE_USER_KEY) : null;
+    if (session || offlineUserId) {
+      state.offlineMode = !session;
+      const userId = window.SupabaseClient.getCurrentUserId() || offlineUserId;
+      if (userId) {
         await window.DB.init(userId);
-        await syncFromSupabase();
+        const cachedSections = await window.DB.getSections();
+        const pulledBeforeFirstRender = !cachedSections.length && navigator.onLine && !!session;
+        if (pulledBeforeFirstRender) await syncFromSupabase();
         await initAppUI();
+        if (state.offlineMode) showSync('Modo sin conexion; cambios guardados en este dispositivo');
+        else if (navigator.onLine && session) {
+          if (!pulledBeforeFirstRender) void syncFromSupabase();
+        } else showSync('Sin conexión; tus cambios se guardarán en este dispositivo');
         return;
       }
     }
@@ -305,7 +339,6 @@ async function switchSection(sectionId, autoFocus = true) {
 
   const currentSection = state.sections.find((s) => s.id === sectionId);
   if (currentSection) {
-    if (DOM.currentSectionTitle) DOM.currentSectionTitle.textContent = currentSection.name;
     if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = currentSection.name;
   }
 
@@ -415,7 +448,6 @@ function openRenameSectionModal(section) {
           await window.DB.updateSection(section.id, { name });
           state.sections = await window.DB.getSections();
           if (state.currentSectionId === section.id) {
-            if (DOM.currentSectionTitle) DOM.currentSectionTitle.textContent = name;
             if (DOM.mainSectionTitle) DOM.mainSectionTitle.textContent = name;
           }
           renderSections();
@@ -584,10 +616,9 @@ async function loadTasks() {
     renderTasks();
     return;
   }
-  state.tasks = await window.DB.getTasks(state.currentListId);
-  state.subtasksByParent = Object.fromEntries(await Promise.all(
-    state.tasks.map(async (task) => [task.id, await window.DB.getSubtasks(task.id)])
-  ));
+  const taskData = await window.DB.getTasksWithSubtasks(state.currentListId);
+  state.tasks = taskData.tasks;
+  state.subtasksByParent = taskData.subtasksByParent;
   renderTasks();
   if (state.viewMode === 'calendar') await renderCalendar();
 }
@@ -598,6 +629,7 @@ function setViewMode(mode) {
   DOM.tasksView.hidden = calendarActive;
   DOM.calendarView.hidden = !calendarActive;
   DOM.bottomDock.hidden = calendarActive;
+  if (DOM.exportActions) DOM.exportActions.hidden = !calendarActive;
   DOM.btnViewTasks.classList.toggle('active', !calendarActive);
   DOM.btnViewCalendar.classList.toggle('active', calendarActive);
   if (calendarActive) renderCalendar();
@@ -782,12 +814,6 @@ function renderTasks() {
   const activeTasks = state.tasks.filter((t) => !t.done);
   const completedTasks = state.tasks.filter((t) => t.done);
 
-  if (DOM.tasksCounterBadge) {
-    const pCount = activeTasks.length;
-    const cCount = completedTasks.length;
-    DOM.tasksCounterBadge.textContent = `${pCount} ${pCount === 1 ? 'pendiente' : 'pendientes'} · ${cCount} ${cCount === 1 ? 'completada' : 'completadas'}`;
-  }
-
   DOM.activeTasksList.innerHTML = '';
   if (activeTasks.length === 0 && completedTasks.length === 0) {
     DOM.emptyState.classList.add('visible');
@@ -800,7 +826,6 @@ function renderTasks() {
   DOM.completedTasksList.innerHTML = '';
   if (completedTasks.length > 0) {
     DOM.completedSection.classList.add('visible');
-    DOM.completedCountLabel.textContent = `COMPLETADAS (${completedTasks.length})`;
     completedTasks.forEach((task) => DOM.completedTasksList.appendChild(createTaskElement(task)));
   } else {
     DOM.completedSection.classList.remove('visible');
@@ -835,11 +860,19 @@ function createTaskElement(task) {
             <span class="task-subtask-title">${escapeHTML(subtask.title)}</span>
           </div>
         `).join('')}
-        <button class="task-subtask-add" type="button">+ Agregar subtarea</button>
       </div>
     </div>
     <div class="task-actions">
-      <button class="btn-task-action" type="button" title="Abrir tarea y subtareas" aria-label="Abrir tarea y subtareas">${ICONS.edit}<span>Detalles</span></button>
+      <div class="action-menu">
+        <button class="btn-task-action action-menu-trigger" type="button" aria-label="Opciones de la tarea" aria-expanded="false">
+          ${ICONS.dots}
+        </button>
+        <div class="action-menu-popover task-action-menu" hidden>
+          <button class="action-menu-item" type="button" data-task-action="edit">Editar tarea</button>
+          <button class="action-menu-item" type="button" data-task-action="subtask">Agregar subtarea</button>
+          <button class="action-menu-item danger" type="button" data-task-action="delete">Eliminar tarea</button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -850,9 +883,28 @@ function createTaskElement(task) {
   });
 
   item.addEventListener('click', () => openTaskDetail(task.id));
-  item.querySelector('.btn-task-action').addEventListener('click', (event) => {
+  const taskMenuRoot = item.querySelector('.task-actions .action-menu');
+  const taskMenuTrigger = taskMenuRoot.querySelector('.action-menu-trigger');
+  const taskMenu = taskMenuRoot.querySelector('.action-menu-popover');
+  taskMenuRoot.addEventListener('click', (event) => event.stopPropagation());
+  taskMenuTrigger.addEventListener('click', (event) => {
     event.stopPropagation();
+    toggleActionMenu(taskMenuTrigger, taskMenu);
+  });
+  taskMenu.querySelector('[data-task-action="edit"]').addEventListener('click', () => {
+    closeActionMenus();
     openTaskDetail(task.id);
+  });
+  taskMenu.querySelector('[data-task-action="subtask"]').addEventListener('click', () => {
+    closeActionMenus();
+    openTaskDetail(task.id).then(() => DOM.subtaskInput.focus());
+  });
+  taskMenu.querySelector('[data-task-action="delete"]').addEventListener('click', async () => {
+    closeActionMenus();
+    if (!confirm('¿Eliminar esta tarea y sus subtareas?')) return;
+    await window.DB.deleteTask(task.id);
+    await loadTasks();
+    bgSync(() => window.SupabaseClient.deleteTask(task.id));
   });
   item.querySelectorAll('.task-subtask-row').forEach((row) => {
     row.addEventListener('click', (event) => event.stopPropagation());
@@ -864,10 +916,6 @@ function createTaskElement(task) {
       if (state.taskDetailId === task.id) await renderSubtasks(task.id);
       bgSync(() => window.SupabaseClient.upsertTask(updated));
     });
-  });
-  item.querySelector('.task-subtask-add').addEventListener('click', (event) => {
-    event.stopPropagation();
-    openTaskDetail(task.id).then(() => DOM.subtaskInput.focus());
   });
   return item;
 }
@@ -1064,12 +1112,28 @@ function bindEvents() {
     });
   }
 
+  if (DOM.btnSectionMenu && DOM.sectionActionsMenu) {
+    DOM.btnSectionMenu.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleActionMenu(DOM.btnSectionMenu, DOM.sectionActionsMenu);
+    });
+    DOM.sectionActionsMenu.addEventListener('click', (event) => event.stopPropagation());
+  }
   if (DOM.btnRenameCurrentSection) {
-    DOM.btnRenameCurrentSection.addEventListener('click', () => openRenameSectionModal(getCurrentSection()));
+    DOM.btnRenameCurrentSection.addEventListener('click', () => {
+      closeActionMenus();
+      openRenameSectionModal(getCurrentSection());
+    });
   }
   if (DOM.btnDeleteCurrentSection) {
-    DOM.btnDeleteCurrentSection.addEventListener('click', () => openDeleteSectionModal(getCurrentSection()));
+    DOM.btnDeleteCurrentSection.addEventListener('click', () => {
+      closeActionMenus();
+      openDeleteSectionModal(getCurrentSection());
+    });
   }
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('.action-menu')) closeActionMenus();
+  });
 
   if (DOM.btnAddList) DOM.btnAddList.addEventListener('click', openNewListModal);
   if (DOM.completedToggleBtn) DOM.completedToggleBtn.addEventListener('click', toggleCompletedAccordion);
@@ -1116,6 +1180,7 @@ function bindEvents() {
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      closeActionMenus();
       if (state.taskDetailId) closeTaskDetail();
       else if (DOM.modalContainer && DOM.modalContainer.classList.contains('open')) closeModal();
       else if (DOM.sidebar && DOM.sidebar.classList.contains('open')) closeSidebar();

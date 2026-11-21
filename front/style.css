@@ -490,7 +490,18 @@ body, #app {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  position: relative;
 }
+
+.action-menu { position: relative; }
+.action-menu-trigger { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--color-blue); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.action-menu-trigger:hover, .action-menu-trigger[aria-expanded="true"] { background: var(--hover-tint); }
+.action-menu-trigger svg { width: 20px; height: 20px; }
+.action-menu-popover { position: absolute; top: calc(100% + 4px); right: 0; z-index: 220; min-width: 180px; padding: 6px; border: 1px solid var(--border-line); border-radius: 12px; background: var(--bg-page); box-shadow: 0 8px 24px rgba(29, 43, 92, 0.15); display: flex; flex-direction: column; }
+.action-menu-popover[hidden], .export-actions[hidden] { display: none !important; }
+.action-menu-item { width: 100%; padding: 10px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-main); text-align: left; font: 500 13px var(--font-body); cursor: pointer; }
+.action-menu-item:hover { background: var(--hover-tint); }
+.action-menu-item.danger { color: #b53a3a; }
 
 .section-action-btn {
   width: 28px;
@@ -516,16 +527,7 @@ body, #app {
 }
 
 /* Etiqueta de contadores ("1 pendiente · 2 completadas") con fondo azul tinta al 10% y texto azul tinta */
-.tasks-counter-badge {
-  background-color: rgba(29, 43, 92, 0.10);
-  color: var(--color-blue);
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
+
 
 /* Apartados (Lists) Strip directly below the title */
 .apartados-strip {
@@ -712,8 +714,6 @@ body, #app {
 .task-subtask-row.done .task-subtask-checkbox { background: var(--accent-emerald); border-color: var(--accent-emerald); }
 .task-subtask-title { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
 .task-subtask-row.done .task-subtask-title { color: var(--text-faint); text-decoration: line-through; }
-.task-subtask-add { align-self: flex-start; margin: 4px 0 0 34px; border: 0; background: transparent; color: var(--text-muted); font: 500 12px var(--font-body); padding: 6px 0; cursor: pointer; }
-.task-subtask-add:hover { color: var(--accent-emerald); }
 
 .calendar-panel[hidden], #tasks-view[hidden], .bottom-dock[hidden] {
   display: none !important;
@@ -940,19 +940,8 @@ body, #app {
 .task-actions {
   display: flex;
   align-items: center;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  opacity: 1;
   gap: 2px;
-}
-
-.task-item:hover .task-actions {
-  opacity: 0.8;
-}
-
-@media (hover: none) {
-  .task-actions {
-    opacity: 0.6;
-  }
 }
 
 .btn-task-action {
@@ -975,8 +964,8 @@ body, #app {
 }
 
 .btn-task-action svg {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
 }
 
 /* ==================== COMPLETED SECTION ==================== */

@@ -115,7 +115,7 @@ async function signIn(email, password) {
 
 async function signOut() {
   const session = getSession();
-  if (session) {
+  if (session && navigator.onLine) {
     await supaFetch('/auth/v1/logout', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -134,7 +134,10 @@ async function refreshToken() {
     });
     if (data.access_token) saveSession(data);
     return data;
-  } catch {
+  } catch (error) {
+    if (error.message.includes('conectar con Supabase') || error.message.includes('no respondi')) {
+      return null;
+    }
     saveSession(null);
     return null;
   }
