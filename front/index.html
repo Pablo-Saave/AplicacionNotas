@@ -141,12 +141,6 @@
             <button id="btn-add-list" class="btn-add-apartado" title="Nuevo apartado" aria-label="Nuevo apartado">
               +
             </button>
-          </div>
-          <div class="section-utilities" aria-label="Vista y exportación">
-            <div class="view-switch" role="group" aria-label="Vista">
-              <button id="btn-view-tasks" class="utility-btn active" type="button">Tareas</button>
-              <button id="btn-view-calendar" class="utility-btn" type="button">Calendario</button>
-            </div>
             <div class="action-menu list-action-menu">
               <button id="btn-list-menu" class="action-menu-trigger" type="button" aria-label="Opciones del apartado" aria-expanded="false" aria-controls="list-actions-menu">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>
@@ -155,6 +149,20 @@
                 <button id="btn-rename-current-list" class="action-menu-item" type="button">Renombrar apartado</button>
                 <button id="btn-delete-current-list" class="action-menu-item danger" type="button">Eliminar apartado</button>
               </div>
+            </div>
+          </div>
+          <div class="section-utilities" aria-label="Vista y exportación">
+            <div class="view-switch" role="group" aria-label="Vista">
+              <button id="btn-view-tasks" class="utility-btn active" type="button">Tareas</button>
+              <button id="btn-view-calendar" class="utility-btn" type="button">Calendario</button>
+            </div>
+            <div id="task-order-actions" class="task-order-actions">
+              <button id="btn-reverse-task-order" class="task-order-btn" type="button" title="Invertir orden de tareas" aria-label="Invertir orden de tareas">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M7 3v14"></path><path d="m4 6 3-3 3 3"></path>
+                  <path d="M17 21V7"></path><path d="m14 18 3 3 3-3"></path>
+                </svg>
+              </button>
             </div>
             <div id="export-actions" class="export-actions" hidden>
               <button id="btn-export-calendar" class="utility-btn" type="button">Exportar calendario (.ics)</button>

@@ -444,6 +444,32 @@ class Database {
     });
   }
 
+  async reverseTaskOrder(listId) {
+    return new Promise((resolve, reject) => {
+      const tx = this._transaction('tasks', 'readwrite');
+      const store = tx.objectStore('tasks');
+      const request = store.index('list_id').getAll(listId);
+      let changedRows = [];
+      tx.oncomplete = () => resolve(changedRows);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('No se pudo invertir el orden de las tareas'));
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const tasks = (request.result || [])
+          .filter((task) => !task.deleted && !task.parent_task_id)
+          .sort((a, b) => a.position - b.position);
+        if (tasks.length < 2) return;
+        const timestamp = new Date().toISOString();
+        changedRows = tasks.map((task, index) => ({
+          ...task,
+          position: tasks.length - index - 1,
+          updated_at: timestamp
+        }));
+        changedRows.forEach((task) => store.put(task));
+      };
+    });
+  }
+
   async deleteTask(id) {
     const task = await this._get('tasks', id);
     if (!task) return true;

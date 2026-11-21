@@ -68,6 +68,8 @@ const DOM = {
   bottomDock: document.querySelector('.bottom-dock'),
   btnViewTasks: document.getElementById('btn-view-tasks'),
   btnViewCalendar: document.getElementById('btn-view-calendar'),
+  btnReverseTaskOrder: document.getElementById('btn-reverse-task-order'),
+  taskOrderActions: document.getElementById('task-order-actions'),
   btnCalendarPrev: document.getElementById('btn-calendar-prev'),
   btnCalendarNext: document.getElementById('btn-calendar-next'),
   btnExportCalendar: document.getElementById('btn-export-calendar'),
@@ -626,6 +628,7 @@ function setViewMode(mode) {
   DOM.calendarView.hidden = !calendarActive;
   DOM.bottomDock.hidden = calendarActive;
   if (DOM.exportActions) DOM.exportActions.hidden = !calendarActive;
+  if (DOM.taskOrderActions) DOM.taskOrderActions.hidden = calendarActive;
   DOM.btnViewTasks.classList.toggle('active', !calendarActive);
   DOM.btnViewCalendar.classList.toggle('active', calendarActive);
   if (calendarActive) renderCalendar();
@@ -1204,6 +1207,13 @@ function bindEvents() {
   if (DOM.btnModalClose) DOM.btnModalClose.addEventListener('click', closeModal);
   if (DOM.btnViewTasks) DOM.btnViewTasks.addEventListener('click', () => setViewMode('tasks'));
   if (DOM.btnViewCalendar) DOM.btnViewCalendar.addEventListener('click', () => setViewMode('calendar'));
+  if (DOM.btnReverseTaskOrder) DOM.btnReverseTaskOrder.addEventListener('click', async () => {
+    if (!state.currentListId) return;
+    const reversed = await window.DB.reverseTaskOrder(state.currentListId);
+    if (!reversed.length) return;
+    await loadTasks();
+    reversed.forEach((task) => bgSync(() => window.SupabaseClient.upsertTask(task)));
+  });
   if (DOM.btnCalendarPrev) DOM.btnCalendarPrev.addEventListener('click', () => {
     state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
     renderCalendar();
