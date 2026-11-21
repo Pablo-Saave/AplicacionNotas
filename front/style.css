@@ -1326,6 +1326,10 @@ body, #app {
   margin: -6px 0;
 }
 
+.auth-error.auth-success {
+  color: #078a58;
+}
+
 /* Spinner de sincronización */
 .sync-indicator {
   position: fixed;

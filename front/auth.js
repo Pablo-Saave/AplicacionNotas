@@ -48,7 +48,7 @@ function renderAuthScreen() {
           <label class="form-label" for="auth-password">Contraseña</label>
           <input type="password" id="auth-password" class="form-input" placeholder="••••••••" required autocomplete="current-password" minlength="6">
         </div>
-        <p id="auth-error" class="auth-error" role="alert" aria-live="polite"></p>
+        <p id="auth-error" class="auth-error" role="status" aria-live="polite"></p>
         <button type="submit" id="auth-submit-btn" class="btn btn-primary auth-btn">Iniciar sesión</button>
       </form>
     </div>
@@ -113,13 +113,14 @@ async function handleAuthSubmit() {
       await window.SupabaseClient.signIn(email, password);
     } else {
       const result = await window.SupabaseClient.signUp(email, password);
-      // Supabase puede pedir confirmación de email según config
-      if (result?.user && !result?.access_token) {
-        showAuthError('Revisá tu correo para confirmar la cuenta, luego volvé e iniciá sesión.');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Crear cuenta';
-        return;
-      }
+      // El registro nunca inicia sesión automáticamente, aunque Supabase devuelva tokens.
+      showAuthMessage(result?.access_token
+        ? 'Cuenta creada. Ahora puedes iniciar sesión manualmente.'
+        : 'Cuenta creada. Te enviamos un correo para confirmar tu dirección. Cuando lo confirmes, vuelve aquí e inicia sesión.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Crear cuenta';
+      document.getElementById('auth-password').value = '';
+      return;
     }
     // Si llegamos acá, login fue exitoso
     submitBtn.disabled = false;
@@ -158,12 +159,45 @@ function translateAuthError(message) {
 
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
-  if (el) el.textContent = msg;
+  if (el) {
+    el.textContent = msg;
+    el.classList.remove('auth-success');
+  }
+}
+
+function showAuthMessage(msg) {
+  const el = document.getElementById('auth-error');
+  if (el) {
+    el.textContent = msg;
+    el.classList.add('auth-success');
+  }
 }
 
 function clearAuthError() {
   const el = document.getElementById('auth-error');
-  if (el) el.textContent = '';
+  if (el) {
+    el.textContent = '';
+    el.classList.remove('auth-success');
+  }
+}
+
+function consumeEmailConfirmationRedirect() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  const error = query.get('error_description') || query.get('error');
+  const confirmed = ['signup', 'email'].includes(hash.get('type') || query.get('type'))
+    && (hash.has('access_token') || hash.has('type') || query.has('type'));
+  if (!confirmed && !error) return null;
+
+  // Supabase may return session tokens in the URL fragment after confirming email.
+  // The caller clears any persisted session and keeps login manual.
+  const clean = new URL(window.location.href);
+  ['type', 'token_hash', 'error', 'error_code', 'error_description'].forEach((key) => clean.searchParams.delete(key));
+  const cleanUrl = `${clean.pathname}${clean.search}`;
+  window.history.replaceState({}, '', cleanUrl);
+  return error
+    ? { type: 'error', message: 'No se pudo confirmar el correo. El enlace puede haber vencido; solicita uno nuevo.' }
+    : { type: 'success', message: 'Correo confirmado. Ya puedes iniciar sesión.' };
 }
 
 // ==================== EXPORTAR ====================
@@ -171,5 +205,7 @@ window.Auth = {
   renderAuthScreen,
   hideAuthScreen,
   showAuthError,
+  showAuthMessage,
+  consumeEmailConfirmationRedirect,
   translateAuthError
 };

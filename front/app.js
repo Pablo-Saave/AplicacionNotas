@@ -301,6 +301,15 @@ async function initApp() {
     registerServiceWorker();
     installBackNavigationGuard();
 
+    const emailRedirect = window.Auth.consumeEmailConfirmationRedirect();
+    if (emailRedirect) {
+      window.SupabaseClient.clearSession();
+      window.Auth.renderAuthScreen();
+      if (emailRedirect.type === 'success') window.Auth.showAuthMessage(emailRedirect.message);
+      else window.Auth.showAuthError(emailRedirect.message);
+      return;
+    }
+
     // Restore this session's local database before contacting the cloud.
     const session = window.SupabaseClient.getSession();
     const offlineUserId = !navigator.onLine ? localStorage.getItem(OFFLINE_USER_KEY) : null;
@@ -312,6 +321,7 @@ async function initApp() {
         const cachedSections = await window.DB.getSections();
         const pulledBeforeFirstRender = !cachedSections.length && navigator.onLine && !!session;
         if (pulledBeforeFirstRender) await syncFromSupabase();
+        document.getElementById('app').style.display = '';
         await initAppUI();
         if (state.offlineMode) showSync('Modo sin conexion; cambios guardados en este dispositivo');
         else if (navigator.onLine && session) {
@@ -1267,10 +1277,17 @@ function installBackNavigationGuard() {
 // ==================== SERVICE WORKER ====================
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;
+    if (hadController) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+    }
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('./sw.js', { scope: './' })
-        .then((reg) => console.log('SW registrado:', reg.scope))
+        .then((reg) => {
+          console.log('SW registrado:', reg.scope);
+          void reg.update();
+        })
         .catch((err) => console.warn('SW falló:', err));
     });
   }

@@ -107,11 +107,13 @@ function isLoggedIn() {
 
 // ==================== AUTH ====================
 async function signUp(email, password) {
-  const data = await supaFetch('/auth/v1/signup', {
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const data = await supaFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: 'POST',
     body: JSON.stringify({ email, password })
   });
-  if (data.access_token) saveSession(data);
+  // Registration is deliberately separate from login. Never persist signup tokens.
+  saveSession(null);
   return data;
 }
 
@@ -279,6 +281,7 @@ window.SupabaseClient = {
   refreshToken,
   isLoggedIn,
   getSession,
+  clearSession: () => saveSession(null),
   getCurrentUserId,
   // Sections
   upsertSection,

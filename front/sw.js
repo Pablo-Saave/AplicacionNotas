@@ -1,4 +1,4 @@
-const CACHE_NAME = 'klip-pwa-v20';
+const CACHE_NAME = 'klip-pwa-v21';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -42,8 +42,8 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Stale-While-Revalidate with offline fallback
-// Network requests to Supabase always go through (don't cache API calls)
+// Fetch network-first so installed clients pick up published fixes promptly.
+// Cached assets remain available as the offline fallback; Supabase is never cached.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -51,25 +51,19 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.hostname.endsWith('supabase.co')) return;
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
-        });
-
-      return cachedResponse || fetchPromise;
-    })
-  );
+  event.respondWith((async () => {
+    try {
+      const networkResponse = await fetch(event.request, { cache: 'no-cache' });
+      if (networkResponse?.status === 200) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(event.request, networkResponse.clone());
+      }
+      return networkResponse;
+    } catch {
+      const cachedResponse = await caches.match(event.request);
+      if (cachedResponse) return cachedResponse;
+      if (event.request.mode === 'navigate') return caches.match('./index.html');
+      return Response.error();
+    }
+  })());
 });
