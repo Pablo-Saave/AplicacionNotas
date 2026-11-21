@@ -7,8 +7,7 @@
 const SUPABASE_URL = 'https://gcmdlpaehqiujymxiysj.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_mh8HXeGkqjxJghs6IQ_R-g_byKeBZxQ';
 
-// Remove the long-lived token written by older versions; require a fresh login.
-localStorage.removeItem('klip_session');
+const SESSION_STORAGE_KEY = 'klip_session';
 
 // ==================== HELPER HTTP ====================
 async function supaFetch(path, options = {}) {
@@ -61,18 +60,26 @@ async function supaFetch(path, options = {}) {
 // ==================== SESSION MANAGEMENT ====================
 function saveSession(session) {
   if (session) {
-    sessionStorage.setItem('klip_session', JSON.stringify(session));
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   } else {
-    sessionStorage.removeItem('klip_session');
+    localStorage.removeItem(SESSION_STORAGE_KEY);
   }
-  // Remove the legacy persistent token written by earlier app versions.
-  localStorage.removeItem('klip_session');
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 function getSession() {
+  const persistentSession = localStorage.getItem(SESSION_STORAGE_KEY);
+  const legacySession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+  const storedSession = persistentSession || legacySession;
+  if (!storedSession) return null;
   try {
-    return JSON.parse(sessionStorage.getItem('klip_session'));
+    const session = JSON.parse(storedSession);
+    if (!persistentSession) localStorage.setItem(SESSION_STORAGE_KEY, storedSession);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return session;
   } catch {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
     return null;
   }
 }

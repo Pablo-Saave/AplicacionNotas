@@ -608,26 +608,6 @@ body, #app {
   font-weight: 600;
 }
 
-.tab-btn-options {
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 1px;
-  opacity: 0.75;
-  display: inline-flex;
-  align-items: center;
-}
-
-.tab-btn-options:hover {
-  opacity: 1;
-}
-
-.tab-btn-options svg {
-  width: 11px;
-  height: 11px;
-}
-
 /* 2. Botón redondo '+' del apartado: pasa a esmeralda #00A060 con el '+' en blanco (mismo estilo que el '+' superior) */
 .btn-add-apartado {
   width: 22px;
@@ -1443,3 +1423,23 @@ body, #app {
   .task-detail-actions { align-items: flex-start; }
   .task-detail-actions > button { min-height: 38px; }
 }
+
+/* Apartados y acciones compactas inspiradas en la referencia móvil. */
+.section-title-row { flex-wrap: nowrap; }
+.lists-tabs { gap: 14px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.lists-tabs::-webkit-scrollbar { display: none; }
+.tab-btn { min-height: 40px; padding: 7px 5px; border: 1px solid transparent; color: var(--text-muted); font-size: 15px; }
+.tab-btn:hover { color: var(--color-blue); border-color: transparent; }
+.tab-btn.active { padding-left: 18px; padding-right: 18px; color: #fff; }
+.btn-add-apartado { width: 30px; height: 30px; border: 1.5px solid var(--accent-emerald); background: transparent; color: var(--accent-emerald); font-size: 20px; }
+.btn-add-apartado:hover { background: var(--accent-emerald); color: #fff; }
+.section-utilities { min-height: 48px; padding: 6px 0; align-items: center; border-top: 1px solid var(--border-line); border-bottom: 1px solid var(--border-line); }
+.list-action-menu { margin-left: auto; }
+.section-utilities .action-menu-trigger { color: var(--text-muted); }
+.action-menu-item:disabled { opacity: 0.4; cursor: default; }
+.task-actions { gap: 6px; }
+.task-favorite-btn { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.task-favorite-btn svg { width: 21px; height: 21px; fill: transparent; stroke: currentColor; stroke-width: 1.8; }
+.task-favorite-btn:hover { background: var(--hover-tint); color: var(--color-blue); }
+.task-favorite-btn.active { color: #D99A20; }
+.task-favorite-btn.active svg { fill: currentColor; }

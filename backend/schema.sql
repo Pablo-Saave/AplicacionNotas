@@ -32,6 +32,7 @@ create table if not exists public.tasks (
   title text not null,
   note text not null default '',
   done boolean not null default false,
+  favorite boolean not null default false,
   due_date date,
   due_time time,
   parent_task_id uuid,

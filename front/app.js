@@ -38,6 +38,10 @@ const DOM = {
   btnDeleteCurrentSection: document.getElementById('btn-delete-current-section'),
   btnSectionMenu: document.getElementById('btn-section-menu'),
   sectionActionsMenu: document.getElementById('section-actions-menu'),
+  btnListMenu: document.getElementById('btn-list-menu'),
+  listActionsMenu: document.getElementById('list-actions-menu'),
+  btnRenameCurrentList: document.getElementById('btn-rename-current-list'),
+  btnDeleteCurrentList: document.getElementById('btn-delete-current-list'),
   mainSectionTitle: document.getElementById('main-section-title'),
   listsTabs: document.getElementById('lists-tabs'),
   btnAddList: document.getElementById('btn-add-list'),
@@ -89,7 +93,8 @@ const ICONS = {
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
-  dots: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`
+  dots: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>`,
+  star: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.78 5.63 6.22.9-4.5 4.39 1.06 6.2L12 17.2l-5.56 2.92 1.06-6.2L3 9.53l6.22-.9L12 3Z" /></svg>`
 };
 
 // ==================== HELPERS ====================
@@ -201,6 +206,7 @@ async function mergeData(remote) {
     const value = { ...row, updated_at: row.updated_at || new Date(0).toISOString(), deleted: !!row.deleted };
     if (table === 'tasks') {
       value.note = value.note || '';
+      value.favorite = !!value.favorite;
       value.due_date = value.due_date || null;
       value.due_time = value.due_time ? value.due_time.slice(0, 5) : null;
     }
@@ -514,21 +520,8 @@ function renderListsTabs() {
     const tab = document.createElement('button');
     tab.className = `tab-btn ${list.id === state.currentListId ? 'active' : ''}`;
     tab.type = 'button';
-    tab.innerHTML = `
-      <span>${escapeHTML(list.name)}</span>
-      <span class="tab-btn-options" title="Opciones" data-list-options="${list.id}">
-        ${ICONS.dots}
-      </span>
-    `;
-    tab.addEventListener('click', (e) => {
-      if (e.target.closest('.tab-btn-options')) return;
-      switchList(list.id);
-    });
-    const btnOptions = tab.querySelector(`[data-list-options="${list.id}"]`);
-    btnOptions.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openListOptionsModal(list);
-    });
+    tab.textContent = list.name;
+    tab.addEventListener('click', () => switchList(list.id));
     DOM.listsTabs.appendChild(tab);
   });
 }
@@ -562,6 +555,19 @@ function openNewListModal() {
   });
 }
 
+async function deleteListFromUI(list) {
+  if (state.lists.length <= 1) {
+    alert('Debes tener al menos un apartado en la sección.');
+    return;
+  }
+  if (!confirm(`¿Eliminar el apartado "${list.name}" y todas sus tareas?`)) return;
+  const listId = list.id;
+  await window.DB.deleteList(listId);
+  state.lists = await window.DB.getLists(state.currentSectionId);
+  bgSync(() => window.SupabaseClient.deleteList(listId));
+  await switchList(state.lists[0].id);
+}
+
 function openListOptionsModal(list) {
   openModal({
     title: `Apartado: ${list.name}`,
@@ -576,18 +582,8 @@ function openListOptionsModal(list) {
         label: 'Eliminar',
         className: 'btn-danger',
         onClick: async () => {
-          if (state.lists.length <= 1) {
-            alert('Debes tener al menos un apartado en la sección.');
-            return;
-          }
-          if (confirm(`¿Eliminar el apartado "${list.name}" y todas sus tareas?`)) {
-            const listId = list.id;
-            await window.DB.deleteList(listId);
-            state.lists = await window.DB.getLists(state.currentSectionId);
-            closeModal();
-            bgSync(() => window.SupabaseClient.deleteList(listId));
-            await switchList(state.lists[0].id);
-          }
+          await deleteListFromUI(list);
+          if (state.currentListId !== list.id) closeModal();
         }
       },
       { label: 'Cancelar', className: 'btn-secondary', onClick: closeModal },
@@ -863,6 +859,9 @@ function createTaskElement(task) {
       </div>
     </div>
     <div class="task-actions">
+      <button class="task-favorite-btn${task.favorite ? ' active' : ''}" type="button" aria-label="${task.favorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}" aria-pressed="${!!task.favorite}">
+        ${ICONS.star}
+      </button>
       <div class="action-menu">
         <button class="btn-task-action action-menu-trigger" type="button" aria-label="Opciones de la tarea" aria-expanded="false">
           ${ICONS.dots}
@@ -870,6 +869,8 @@ function createTaskElement(task) {
         <div class="action-menu-popover task-action-menu" hidden>
           <button class="action-menu-item" type="button" data-task-action="edit">Editar tarea</button>
           <button class="action-menu-item" type="button" data-task-action="subtask">Agregar subtarea</button>
+          <button class="action-menu-item" type="button" data-task-action="up">Mover arriba</button>
+          <button class="action-menu-item" type="button" data-task-action="down">Mover abajo</button>
           <button class="action-menu-item danger" type="button" data-task-action="delete">Eliminar tarea</button>
         </div>
       </div>
@@ -886,6 +887,16 @@ function createTaskElement(task) {
   const taskMenuRoot = item.querySelector('.task-actions .action-menu');
   const taskMenuTrigger = taskMenuRoot.querySelector('.action-menu-trigger');
   const taskMenu = taskMenuRoot.querySelector('.action-menu-popover');
+  const taskSiblings = state.tasks.filter((row) => !!row.done === !!task.done);
+  const taskIndex = taskSiblings.findIndex((row) => row.id === task.id);
+  taskMenu.querySelector('[data-task-action="up"]').disabled = taskIndex <= 0;
+  taskMenu.querySelector('[data-task-action="down"]').disabled = taskIndex < 0 || taskIndex >= taskSiblings.length - 1;
+  item.querySelector('.task-favorite-btn').addEventListener('click', async (event) => {
+    event.stopPropagation();
+    const updated = await window.DB.updateTask(task.id, { favorite: !task.favorite });
+    await loadTasks();
+    bgSync(() => window.SupabaseClient.upsertTask(updated));
+  });
   taskMenuRoot.addEventListener('click', (event) => event.stopPropagation());
   taskMenuTrigger.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -898,6 +909,15 @@ function createTaskElement(task) {
   taskMenu.querySelector('[data-task-action="subtask"]').addEventListener('click', () => {
     closeActionMenus();
     openTaskDetail(task.id).then(() => DOM.subtaskInput.focus());
+  });
+  ['up', 'down'].forEach((action) => {
+    taskMenu.querySelector(`[data-task-action="${action}"]`).addEventListener('click', async () => {
+      closeActionMenus();
+      const moved = await window.DB.moveTask(task.id, action === 'up' ? -1 : 1);
+      if (!moved.length) return;
+      await loadTasks();
+      moved.forEach((updated) => bgSync(() => window.SupabaseClient.upsertTask(updated)));
+    });
   });
   taskMenu.querySelector('[data-task-action="delete"]').addEventListener('click', async () => {
     closeActionMenus();
@@ -1119,6 +1139,13 @@ function bindEvents() {
     });
     DOM.sectionActionsMenu.addEventListener('click', (event) => event.stopPropagation());
   }
+  if (DOM.btnListMenu && DOM.listActionsMenu) {
+    DOM.btnListMenu.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleActionMenu(DOM.btnListMenu, DOM.listActionsMenu);
+    });
+    DOM.listActionsMenu.addEventListener('click', (event) => event.stopPropagation());
+  }
   if (DOM.btnRenameCurrentSection) {
     DOM.btnRenameCurrentSection.addEventListener('click', () => {
       closeActionMenus();
@@ -1129,6 +1156,20 @@ function bindEvents() {
     DOM.btnDeleteCurrentSection.addEventListener('click', () => {
       closeActionMenus();
       openDeleteSectionModal(getCurrentSection());
+    });
+  }
+  if (DOM.btnRenameCurrentList) {
+    DOM.btnRenameCurrentList.addEventListener('click', () => {
+      closeActionMenus();
+      const list = state.lists.find((row) => row.id === state.currentListId);
+      if (list) openListOptionsModal(list);
+    });
+  }
+  if (DOM.btnDeleteCurrentList) {
+    DOM.btnDeleteCurrentList.addEventListener('click', () => {
+      closeActionMenus();
+      const list = state.lists.find((row) => row.id === state.currentListId);
+      if (list) deleteListFromUI(list);
     });
   }
   document.addEventListener('click', (event) => {

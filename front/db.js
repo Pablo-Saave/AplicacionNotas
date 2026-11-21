@@ -104,6 +104,7 @@ class Database {
           if (patch.due_date === '') { patch.due_date = null; changed = true; }
           if (patch.due_time === '') { patch.due_time = null; changed = true; }
           if (patch.parent_task_id === undefined) { patch.parent_task_id = null; changed = true; }
+          if (patch.favorite === undefined) { patch.favorite = false; changed = true; }
         }
         if (changed) await this._put(name, patch);
       }
@@ -371,6 +372,7 @@ class Database {
       title: title.trim(),
       note: (note || '').trim(),
       done: false,
+      favorite: false,
       due_date: null,
       due_time: null,
       parent_task_id: null,
@@ -388,6 +390,7 @@ class Database {
     const subtask = {
       id: generateUUID(), list_id: parent.list_id, parent_task_id: parentTaskId,
       title: title.trim(), note: '', done: false, due_date: null, due_time: null,
+      favorite: false,
       position: siblings.length ? Math.max(...siblings.map((row) => row.position)) + 1 : 0,
       updated_at: new Date().toISOString(), deleted: false
     };
@@ -405,6 +408,40 @@ class Database {
     };
     await this._put('tasks', updated);
     return updated;
+  }
+
+  async moveTask(id, direction) {
+    return new Promise((resolve, reject) => {
+      const tx = this._transaction('tasks', 'readwrite');
+      const store = tx.objectStore('tasks');
+      const getRequest = store.getAll();
+      let result = [];
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('No se pudo reordenar la tarea'));
+      getRequest.onerror = () => reject(getRequest.error);
+      getRequest.onsuccess = () => {
+        const allRows = getRequest.result || [];
+        const task = allRows.find((row) => row.id === id && !row.deleted);
+        if (!task || task.parent_task_id) {
+          return;
+        }
+        const siblings = allRows
+          .filter((row) => !row.deleted && !row.parent_task_id && row.list_id === task.list_id && !!row.done === !!task.done)
+          .sort((a, b) => a.position - b.position);
+        const index = siblings.findIndex((row) => row.id === id);
+        const neighbor = siblings[index + direction];
+        if (!neighbor) {
+          return;
+        }
+        const timestamp = new Date().toISOString();
+        const movedTask = { ...task, position: neighbor.position, updated_at: timestamp };
+        const movedNeighbor = { ...neighbor, position: task.position, updated_at: timestamp };
+        result = [movedTask, movedNeighbor];
+        store.put(movedTask);
+        store.put(movedNeighbor);
+      };
+    });
   }
 
   async deleteTask(id) {
